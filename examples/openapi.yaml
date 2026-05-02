@@ -1,0 +1,71 @@
+openapi: 3.0.0
+info:
+  title: Example Billing API
+  version: 1.0.0
+paths:
+  /customers:
+    get:
+      operationId: listCustomers
+      summary: List customers
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter customers by status
+          schema:
+            type: string
+    post:
+      operationId: createCustomer
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+  /invoices:
+    get:
+      operationId: listInvoices
+      summary: List invoices
+      parameters:
+        - name: customerId
+          in: query
+          required: false
+          description: Filter invoices by customer ID
+          schema:
+            type: string
+    post:
+      operationId: createInvoice
+      summary: Create invoice for customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customerId
+                - amount
+              properties:
+                customerId:
+                  type: string
+                amount:
+                  type: number
+  /invoices/{invoiceId}:
+    delete:
+      operationId: deleteInvoice
+      summary: Delete invoice
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          description: Invoice ID
+          schema:
+            type: string

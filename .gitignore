@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging
+*.egg-info/
+dist/
+build/
+
+# Generated MCPGen demo output
+generated_*/
+
+# Runtime logs
+logs/
+*.log
+
+# Local env files
+.env
+.env.*
+!.env.example

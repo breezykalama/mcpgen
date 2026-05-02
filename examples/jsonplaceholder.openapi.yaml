@@ -1,0 +1,80 @@
+openapi: 3.0.0
+info:
+  title: JSONPlaceholder Demo API
+  version: 1.0.0
+servers:
+  - url: https://jsonplaceholder.typicode.com
+paths:
+  /users:
+    get:
+      operationId: listUsers
+      summary: List users
+      description: Return all demo users.
+  /users/{id}:
+    get:
+      operationId: getUserById
+      summary: Get user by ID
+      description: Return one demo user by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+  /posts:
+    get:
+      operationId: listPosts
+      summary: List posts
+      description: Return demo posts.
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Filter posts by user ID
+          schema:
+            type: integer
+    post:
+      operationId: createPost
+      summary: Create post
+      description: Create a demo post.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - body
+                - userId
+              properties:
+                title:
+                  type: string
+                body:
+                  type: string
+                userId:
+                  type: integer
+  /posts/{id}:
+    get:
+      operationId: getPostById
+      summary: Get post by ID
+      description: Return one demo post by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Post ID
+          schema:
+            type: integer
+    delete:
+      operationId: deletePost
+      summary: Delete post
+      description: Delete a demo post.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Post ID
+          schema:
+            type: integer

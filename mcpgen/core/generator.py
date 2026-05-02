@@ -1,0 +1,90 @@
+import json
+import shutil
+from pathlib import Path
+from typing import Literal
+
+from mcpgen.core.config import MCPGenConfig, dump_runtime_config
+from mcpgen.core.models import GenerationResult, Tool
+from mcpgen.core.parser import parse_openapi
+from mcpgen.core.tool_generator import generate_tools
+from mcpgen.runtime.safety import build_safety_report, filter_safe_tools
+
+
+GenerateMode = Literal["fastapi", "mcp"]
+
+
+def generate_project(
+    spec_path: Path,
+    output_dir: Path,
+    config: MCPGenConfig | None = None,
+    mode: GenerateMode = "fastapi",
+) -> GenerationResult:
+    """Generate tools.json and a runnable server scaffold."""
+    config = config or MCPGenConfig()
+    endpoints = parse_openapi(spec_path)
+    all_tools = generate_tools(endpoints)
+    allowed_methods = config.normalized_allowed_methods()
+    tools = filter_safe_tools(all_tools, allowed_methods=allowed_methods)
+    safety_report = build_safety_report(all_tools, tools, allowed_methods=allowed_methods)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_tools_json(tools, output_dir / "tools.json")
+    write_tools_json(all_tools, output_dir / "tools.all.json")
+    write_json(safety_report, output_dir / "safety_report.json")
+    write_json(dump_runtime_config(config, mode=mode), output_dir / "mcpgen.runtime.json")
+    write_env_example(config, output_dir / ".env.example")
+    write_generated_config(config, mode, output_dir / "mcpgen.generated.yaml")
+    copy_server_template(output_dir / "server.py", mode=mode)
+
+    return GenerationResult(
+        output_dir=str(output_dir.resolve()),
+        tools=tools,
+        mode=mode,
+        all_tools=all_tools,
+        safety_report=safety_report,
+    )
+
+
+def write_tools_json(tools: list[Tool], path: Path) -> None:
+    data = [tool.model_dump(mode="json") for tool in tools]
+    write_json(data, path)
+
+
+def write_json(data: object, path: Path) -> None:
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def write_env_example(config: MCPGenConfig, path: Path) -> None:
+    path.write_text(f"API_BASE_URL={config.api_base_url}\n", encoding="utf-8")
+
+
+def write_generated_config(config: MCPGenConfig, mode: str, path: Path) -> None:
+    data = {
+        "mode": mode,
+        "max_tools": config.max_tools,
+        "allowed_methods": sorted(config.normalized_allowed_methods()),
+        "output_dir": config.output_dir,
+        "api_base_url": config.api_base_url,
+        "enabled_tools": config.enabled_tools,
+        "execution_mode": config.execution_mode,
+        "audit_enabled": config.audit_enabled,
+        "audit_log_path": config.audit_log_path,
+    }
+    path.write_text(json_to_yaml_like(data), encoding="utf-8")
+
+
+def json_to_yaml_like(data: dict) -> str:
+    lines = []
+    for key, value in data.items():
+        if isinstance(value, list):
+            lines.append(f"{key}:")
+            lines.extend(f"  - {item}" for item in value)
+        else:
+            lines.append(f"{key}: {value}")
+    return "\n".join(lines) + "\n"
+
+
+def copy_server_template(destination: Path, mode: GenerateMode = "fastapi") -> None:
+    template_name = "fastapi_server.py" if mode == "fastapi" else "mcp_server.py"
+    template_path = Path(__file__).resolve().parents[1] / "templates" / template_name
+    shutil.copyfile(template_path, destination)

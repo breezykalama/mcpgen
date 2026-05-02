@@ -7,6 +7,7 @@ from mcpgen.core.config import MCPGenConfig, dump_runtime_config
 from mcpgen.core.models import GenerationResult, Tool
 from mcpgen.core.parser import parse_openapi
 from mcpgen.core.tool_generator import generate_tools
+from mcpgen.runtime.embedding import generate_tool_embeddings
 from mcpgen.runtime.safety import build_safety_report, filter_safe_tools
 
 
@@ -30,6 +31,7 @@ def generate_project(
     output_dir.mkdir(parents=True, exist_ok=True)
     write_tools_json(tools, output_dir / "tools.json")
     write_tools_json(all_tools, output_dir / "tools.all.json")
+    write_json(generate_tool_embeddings(all_tools), output_dir / "tools.embeddings.json")
     write_json(safety_report, output_dir / "safety_report.json")
     write_json(dump_runtime_config(config, mode=mode), output_dir / "mcpgen.runtime.json")
     write_env_example(config, output_dir / ".env.example")
@@ -69,6 +71,7 @@ def write_generated_config(config: MCPGenConfig, mode: str, path: Path) -> None:
         "execution_mode": config.execution_mode,
         "audit_enabled": config.audit_enabled,
         "audit_log_path": config.audit_log_path,
+        "routing_mode": config.routing_mode,
     }
     path.write_text(json_to_yaml_like(data), encoding="utf-8")
 

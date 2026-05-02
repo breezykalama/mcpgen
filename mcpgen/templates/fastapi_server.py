@@ -30,6 +30,7 @@ app = FastAPI(title="Generated MCPGen Server")
 BASE_DIR = Path(__file__).parent
 registry = ToolRegistry.from_json(BASE_DIR / "tools.json")
 all_registry = ToolRegistry.from_json(BASE_DIR / "tools.all.json")
+tool_embeddings = json.loads((BASE_DIR / "tools.embeddings.json").read_text(encoding="utf-8"))
 runtime_config = json.loads((BASE_DIR / "mcpgen.runtime.json").read_text(encoding="utf-8"))
 safety_report = json.loads((BASE_DIR / "safety_report.json").read_text(encoding="utf-8"))
 api_base_url = os.getenv("API_BASE_URL", runtime_config.get("api_base_url", "https://api.example.com"))
@@ -61,13 +62,20 @@ def root():
 
 @app.post("/tools")
 def list_relevant_tools(request: ToolQuery):
-    ranked_tools = rank_relevant_tools(request.query, registry.list_tools(), limit=runtime_config.get("max_tools", 5))
+    ranked_tools = rank_relevant_tools(
+        request.query,
+        registry.list_tools(),
+        limit=runtime_config.get("max_tools", 5),
+        embeddings=tool_embeddings,
+        routing_mode=runtime_config.get("routing_mode", "semantic"),
+    )
     return {
         "tools": [
             {
                 "tool": item["tool"].model_dump(mode="json"),
                 "score": item["score"],
                 "matched_terms": item["matched_terms"],
+                "routing_mode": item.get("routing_mode", runtime_config.get("routing_mode", "semantic")),
             }
             for item in ranked_tools
         ]

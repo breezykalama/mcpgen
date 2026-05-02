@@ -14,6 +14,7 @@ def test_default_config_is_safe() -> None:
     assert config.execution_mode == "dry-run"
     assert config.audit_enabled is True
     assert config.audit_log_path == "logs/audit.log"
+    assert config.routing_mode == "semantic"
 
 
 def test_load_config_from_yaml(tmp_path: Path) -> None:
@@ -30,6 +31,7 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
         execution_mode: safe-execute
         audit_enabled: false
         audit_log_path: custom/audit.log
+        routing_mode: keyword
         """,
         encoding="utf-8",
     )
@@ -44,3 +46,4 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     assert config.execution_mode == "safe-execute"
     assert config.audit_enabled is False
     assert config.audit_log_path == "custom/audit.log"
+    assert config.routing_mode == "keyword"

@@ -16,6 +16,7 @@ class MCPGenConfig(BaseModel):
     execution_mode: str = "dry-run"
     audit_enabled: bool = True
     audit_log_path: str = "logs/audit.log"
+    routing_mode: str = "semantic"
 
     def normalized_allowed_methods(self) -> set[str]:
         return {method.upper() for method in self.allowed_methods}
@@ -49,4 +50,5 @@ def dump_runtime_config(config: MCPGenConfig, mode: str = "fastapi") -> dict[str
         "execution_mode": config.execution_mode,
         "audit_enabled": config.audit_enabled,
         "audit_log_path": config.audit_log_path,
+        "routing_mode": config.routing_mode,
     }

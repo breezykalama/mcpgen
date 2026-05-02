@@ -14,6 +14,7 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     all_tools = json.loads((output_dir / "tools.all.json").read_text(encoding="utf-8"))
     safety_report = json.loads((output_dir / "safety_report.json").read_text(encoding="utf-8"))
     runtime_config = json.loads((output_dir / "mcpgen.runtime.json").read_text(encoding="utf-8"))
+    embeddings = json.loads((output_dir / "tools.embeddings.json").read_text(encoding="utf-8"))
     env_example = (output_dir / ".env.example").read_text(encoding="utf-8")
     generated_config = (output_dir / "mcpgen.generated.yaml").read_text(encoding="utf-8")
 
@@ -42,6 +43,9 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     assert runtime_config["execution_mode"] == "dry-run"
     assert runtime_config["audit_enabled"] is True
     assert runtime_config["audit_log_path"] == "logs/audit.log"
+    assert runtime_config["routing_mode"] == "semantic"
+    assert len(embeddings) == 5
+    assert embeddings[0]["tool_name"] == "list_customers"
     assert env_example == "API_BASE_URL=https://api.example.com\n"
     assert "mode: fastapi" in generated_config
 
@@ -71,7 +75,7 @@ def test_generated_server_exposes_root_and_safety(tmp_path: Path) -> None:
     assert module.safety()["counts"]["withheld_tools"] == 3
     routed = module.list_relevant_tools(module.ToolQuery(query="invoice customer"))
     assert routed["tools"][0]["score"] >= 1
-    assert routed["tools"][0]["matched_terms"]
+    assert "routing_mode" in routed["tools"][0]
     assert "tool" in routed["tools"][0]
 
     preview = module.dry_run_tool(

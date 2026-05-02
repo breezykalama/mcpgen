@@ -62,7 +62,10 @@ def generate(
     typer.echo(f"Analyzed {len(result.all_tools)} total tool(s).")
     typer.echo(f"Mode: {result.mode}")
     typer.echo(f"Output directory: {result.output_dir}")
-    typer.echo("Wrote tools.json, tools.all.json, safety_report.json, mcpgen.runtime.json, and mcpgen.generated.yaml.")
+    typer.echo(
+        "Wrote tools.json, tools.all.json, tools.embeddings.json, "
+        "safety_report.json, mcpgen.runtime.json, and mcpgen.generated.yaml."
+    )
     if mode == "fastapi":
         typer.echo("Run: uvicorn server:app --reload")
     else:

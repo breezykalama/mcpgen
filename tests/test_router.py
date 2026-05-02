@@ -44,3 +44,42 @@ def test_rank_relevant_tools_explains_matches() -> None:
     assert ranked[0]["matched_terms"] == ["customer", "invoice"]
     assert ranked[1]["tool"].name == "list_customers"
     assert ranked[1]["score"] == 1
+
+
+def test_semantic_routing_returns_relevant_tools(monkeypatch) -> None:
+    tools = [
+        Tool(name="list_customers", description="List customers", method="GET", path="/customers", risk_level=RiskLevel.LOW),
+        Tool(name="list_invoices", description="List customer invoices", method="GET", path="/invoices", risk_level=RiskLevel.LOW),
+    ]
+    embeddings = [
+        {"tool_name": "list_customers", "embedding": [1.0, 0.0]},
+        {"tool_name": "list_invoices", "embedding": [0.0, 1.0]},
+    ]
+    monkeypatch.setattr("mcpgen.runtime.router.embed_query", lambda query: [0.0, 1.0])
+
+    ranked = rank_relevant_tools(
+        "invoice",
+        tools,
+        embeddings=embeddings,
+        routing_mode="semantic",
+    )
+
+    assert ranked[0]["tool"].name == "list_invoices"
+    assert ranked[0]["routing_mode"] == "semantic"
+
+
+def test_semantic_routing_falls_back_to_keyword_when_embeddings_unavailable() -> None:
+    tools = [
+        Tool(name="list_customers", description="List customers", method="GET", path="/customers", risk_level=RiskLevel.LOW),
+        Tool(name="list_invoices", description="List invoices", method="GET", path="/invoices", risk_level=RiskLevel.LOW),
+    ]
+
+    ranked = rank_relevant_tools(
+        "invoice",
+        tools,
+        embeddings=[],
+        routing_mode="semantic",
+    )
+
+    assert ranked[0]["tool"].name == "list_invoices"
+    assert ranked[0]["routing_mode"] == "keyword"

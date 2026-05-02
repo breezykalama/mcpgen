@@ -22,6 +22,7 @@ MCPGen reads an OpenAPI YAML or JSON file and generates:
 - dry-run previews
 - safe `GET` execution
 - JSONL audit logs
+- semantic tool routing with keyword fallback
 
 The default behavior is intentionally conservative: only low-risk `GET` tools are exposed.
 
@@ -35,7 +36,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
   - `DELETE` = high
 - Safe-by-default filtering
 - Input schema generation from path/query parameters and JSON request bodies
-- Keyword-based tool routing with scores and matched terms
+- Semantic tool routing with keyword fallback
 - FastAPI mode
 - MCP stdio mode with `tools/list` and `tools/call`
 - Dry-run request previews
@@ -53,9 +54,10 @@ OpenAPI spec
   -> tool generator
   -> risk classifier
   -> safety filter
-  -> tools.json / tools.all.json / safety_report.json
+  -> tools.json / tools.all.json / tools.embeddings.json / safety_report.json
   -> generated FastAPI or MCP server
   -> policy engine
+  -> semantic/keyword router
   -> dry-run or safe GET execution
   -> audit log
 ```
@@ -299,6 +301,40 @@ Example `tools/call` dry-run input:
 
 MCP mode uses the same `tools.json`, policy engine, and audit logging as FastAPI mode. In the current MVP, `tools/call` is dry-run by default. With `execution_mode: safe-execute`, it can execute only low-risk `GET` tools.
 
+## Semantic Tool Routing
+
+MCPGen writes `tools.embeddings.json` during generation and uses it when:
+
+```yaml
+routing_mode: semantic
+```
+
+If embeddings are unavailable or semantic ranking fails, MCPGen automatically falls back to keyword routing. You can force keyword routing with:
+
+```yaml
+routing_mode: keyword
+```
+
+Tool text combines the tool name, description, and optional tags. Example:
+
+```text
+create_invoice create invoice for customer billing payments
+```
+
+By default, MCPGen uses a deterministic local embedding fallback so demos and tests work without model downloads. To use `sentence-transformers`, set:
+
+```bash
+export MCPGEN_EMBEDDING_BACKEND=sentence-transformers
+```
+
+PowerShell:
+
+```powershell
+$env:MCPGEN_EMBEDDING_BACKEND = "sentence-transformers"
+```
+
+Compare routing modes by changing `routing_mode` in `mcpgen.yaml` and regenerating the server. Semantic mode ranks by vector similarity; keyword mode ranks by normalized token overlap and includes matched terms.
+
 ## Safety Model
 
 MCPGen is safe by default:
@@ -335,6 +371,7 @@ Config:
 ```yaml
 audit_enabled: true
 audit_log_path: logs/audit.log
+routing_mode: semantic
 ```
 
 Each event includes:
@@ -388,7 +425,7 @@ api_base_url: https://jsonplaceholder.typicode.com
 - No authentication or secret handling beyond environment-variable preparation.
 - No write execution.
 - No confirmation workflow UI.
-- No embeddings or semantic routing.
+- No vector database or embedding cache optimization.
 - No rate limiting.
 - No database-backed audit sink.
 - MCP mode uses a minimal stdio scaffold if the official Python MCP SDK is unavailable.
@@ -402,5 +439,5 @@ api_base_url: https://jsonplaceholder.typicode.com
 - Request/response validation
 - Better OpenAPI schema support
 - Pluggable audit sinks
-- Semantic routing with embeddings
+- Better semantic routing models and embedding cache optimization
 - Deployment templates

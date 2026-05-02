@@ -7,3 +7,4 @@ enabled_tools: []
 execution_mode: dry-run
 audit_enabled: true
 audit_log_path: logs/audit.log
+routing_mode: semantic

@@ -2,13 +2,22 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuthConfig(BaseModel):
     mode: str = "none"
     api_key_env: str = "API_KEY"
     api_key_header: str = "X-API-Key"
+
+
+class RateLimitConfig(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    enabled: bool = False
+    per_tool: int = 10
+    global_: int = Field(default=100, alias="global")
+    window_seconds: int = 60
 
 
 class MCPGenConfig(BaseModel):
@@ -26,6 +35,7 @@ class MCPGenConfig(BaseModel):
     metrics_enabled: bool = True
     metrics_path: str = "logs/metrics.json"
     auth: AuthConfig = Field(default_factory=AuthConfig)
+    rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
 
     def normalized_allowed_methods(self) -> set[str]:
         return {method.upper() for method in self.allowed_methods}
@@ -63,4 +73,5 @@ def dump_runtime_config(config: MCPGenConfig, mode: str = "fastapi") -> dict[str
         "metrics_enabled": config.metrics_enabled,
         "metrics_path": config.metrics_path,
         "auth": config.auth.model_dump(),
+        "rate_limit": config.rate_limit.model_dump(by_alias=True),
     }

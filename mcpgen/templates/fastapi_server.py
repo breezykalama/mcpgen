@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from mcpgen.runtime.registry import ToolRegistry
@@ -11,6 +12,7 @@ from mcpgen.runtime.dry_run import build_dry_run_request
 from mcpgen.runtime.executor import execute_tool
 from mcpgen.runtime.metrics import read_metrics, record_metric, reset_metrics
 from mcpgen.runtime.policy import evaluate_tool_policy
+from mcpgen.runtime.rate_limit import check_rate_limit, record_rate_limit_hit
 from mcpgen.runtime.router import rank_relevant_tools
 
 
@@ -69,6 +71,10 @@ def root():
 
 @app.post("/tools")
 def list_relevant_tools(request: ToolQuery):
+    rate_limit = enforce_rate_limit(None)
+    if rate_limit is not None:
+        return rate_limit
+    record_rate_limit_hit(None, runtime_config)
     ranked_tools = rank_relevant_tools(
         request.query,
         registry.list_tools(),
@@ -97,6 +103,10 @@ def list_tools():
 
 @app.post("/tools/{tool_name}/dry-run")
 def dry_run_tool(tool_name: str, request: DryRunRequest):
+    rate_limit = enforce_rate_limit(tool_name)
+    if rate_limit is not None:
+        return rate_limit
+    record_rate_limit_hit(tool_name, runtime_config)
     tool = all_registry.get_tool(tool_name)
     if tool is None:
         tool_data = {"name": tool_name, "method": "unknown", "path": "unknown", "risk_level": "unknown"}
@@ -158,6 +168,10 @@ def dry_run_tool(tool_name: str, request: DryRunRequest):
 
 @app.post("/execute")
 def execute(payload: ExecuteRequest, request: Request):
+    rate_limit = enforce_rate_limit(payload.tool_name)
+    if rate_limit is not None:
+        return rate_limit
+    record_rate_limit_hit(payload.tool_name, runtime_config)
     return execute_tool(
         payload.tool_name,
         payload.params,
@@ -186,3 +200,64 @@ def metrics():
 def reset_runtime_metrics():
     reset_metrics(metrics_config)
     return read_metrics(metrics_config)
+
+
+def enforce_rate_limit(tool_name: str | None):
+    decision = check_rate_limit(tool_name, runtime_config)
+    if decision["allowed"]:
+        return None
+
+    tool = all_registry.get_tool(tool_name) if tool_name is not None else None
+    tool_data = tool.model_dump(mode="json") if tool is not None else {
+        "name": tool_name or "global",
+        "method": "unknown",
+        "path": "unknown",
+        "risk_level": "unknown",
+    }
+    record_rate_limited(tool_data, decision, source="fastapi")
+    body = rate_limited_body(decision)
+    return JSONResponse(
+        status_code=429,
+        content=body,
+        headers={"Retry-After": str(decision["retry_after"])},
+    )
+
+
+def rate_limited_body(decision: dict) -> dict:
+    return {
+        "status": "rate_limited",
+        "scope": decision["scope"],
+        "retry_after": decision["retry_after"],
+        "reason": decision["reason"],
+    }
+
+
+def record_rate_limited(tool: dict, decision: dict, source: str) -> None:
+    tool_name = tool.get("name", "unknown")
+    record_metric(
+        {
+            "action": "rate_limited",
+            "tool_name": tool_name,
+            "scope": decision["scope"],
+            "source": source,
+        },
+        metrics_config,
+    )
+    write_audit_event(
+        {
+            "tool_name": tool_name,
+            "method": tool.get("method", "unknown"),
+            "path": tool.get("path", "unknown"),
+            "risk_level": tool.get("risk_level", "unknown"),
+            "mode": runtime_config.get("execution_mode", "dry-run"),
+            "status": "rate_limited",
+            "allowed": False,
+            "reason": decision["reason"],
+            "source": source,
+            "action": "rate_limited",
+            "scope": decision["scope"],
+            "retry_after": decision["retry_after"],
+            "audit_enabled": audit_config.get("audit_enabled", True),
+            "audit_log_path": audit_config.get("audit_log_path", "logs/audit.log"),
+        }
+    )

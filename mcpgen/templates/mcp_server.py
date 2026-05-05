@@ -8,6 +8,7 @@ from mcpgen.runtime.dry_run import build_dry_run_request
 from mcpgen.runtime.executor import execute_tool
 from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.policy import evaluate_tool_policy
+from mcpgen.runtime.rate_limit import check_rate_limit, record_rate_limit_hit
 from mcpgen.runtime.registry import ToolRegistry
 
 
@@ -51,6 +52,11 @@ def list_mcp_tools() -> list[dict]:
 
 def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
     arguments = arguments or {}
+    rate_limit = check_rate_limit(name, runtime_config)
+    if not rate_limit["allowed"]:
+        return mcp_rate_limited_result(name, rate_limit)
+    record_rate_limit_hit(name, runtime_config)
+
     tool = all_registry.get_tool(name)
     if tool is None:
         tool_data = {"name": name, "method": "unknown", "path": "unknown", "risk_level": "unknown"}
@@ -186,6 +192,67 @@ def mcp_auth_error(message: str) -> dict:
         ],
         "isError": True,
     }
+
+
+def mcp_rate_limited_result(tool_name: str, decision: dict) -> dict:
+    record_rate_limited(
+        {
+            "name": tool_name,
+            "method": "unknown",
+            "path": "unknown",
+            "risk_level": "unknown",
+        },
+        decision,
+        source="mcp",
+    )
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "status": "rate_limited",
+                        "scope": decision["scope"],
+                        "retry_after": decision["retry_after"],
+                        "reason": decision["reason"],
+                    },
+                    indent=2,
+                ),
+            }
+        ],
+        "isError": True,
+    }
+
+
+def record_rate_limited(tool: dict, decision: dict, source: str) -> None:
+    tool_name = tool.get("name", "unknown")
+    record_metric(
+        {
+            "action": "rate_limited",
+            "tool_name": tool_name,
+            "scope": decision["scope"],
+            "source": source,
+        },
+        metrics_config,
+    )
+    write_audit_event(
+        {
+            "tool_name": tool_name,
+            "method": tool.get("method", "unknown"),
+            "path": tool.get("path", "unknown"),
+            "risk_level": tool.get("risk_level", "unknown"),
+            "mode": runtime_config.get("execution_mode", "dry-run"),
+            "status": "rate_limited",
+            "allowed": False,
+            "reason": decision["reason"],
+            "source": source,
+            "action": "rate_limited",
+            "scope": decision["scope"],
+            "retry_after": decision["retry_after"],
+            "audit_enabled": audit_config.get("audit_enabled", True),
+            "audit_log_path": audit_config.get("audit_log_path", "logs/audit.log"),
+        }
+    )
 
 
 def handle_request(request: dict) -> dict | None:

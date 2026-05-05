@@ -46,6 +46,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 - JSONL audit logging
 - Runtime metrics for routing, policy decisions, dry-runs, execution outcomes, and latency
 - Upstream auth passthrough and API key injection without hardcoded secrets
+- Lightweight in-memory rate limiting
 - CLI commands: `generate`, `inspect`
 - Config via `mcpgen.yaml`
 
@@ -480,6 +481,62 @@ Example response:
 
 Metrics are MVP-level and file-based. They are useful for local demos and development visibility, but they are not a replacement for production telemetry systems.
 
+## Rate Limiting
+
+v0.5.0 adds lightweight in-memory rate limiting for generated servers.
+
+Config:
+
+```yaml
+rate_limit:
+  enabled: true
+  per_tool: 10
+  global: 100
+  window_seconds: 60
+```
+
+Defaults:
+
+```yaml
+rate_limit:
+  enabled: false
+  per_tool: 10
+  global: 100
+  window_seconds: 60
+```
+
+FastAPI mode applies the global limit to operational requests:
+
+- `POST /tools`
+- `POST /tools/{tool_name}/dry-run`
+- `POST /execute`
+
+Per-tool limits apply to:
+
+- `POST /tools/{tool_name}/dry-run`
+- `POST /execute`
+- MCP `tools/call`
+
+Health and root endpoints are not rate limited.
+
+When a request exceeds the limit, FastAPI returns `429` with a `Retry-After` header:
+
+```json
+{
+  "status": "rate_limited",
+  "scope": "per_tool",
+  "retry_after": 30,
+  "reason": "rate limit exceeded"
+}
+```
+
+Rate-limited events are recorded in both audit logs and aggregate metrics:
+
+- `total_rate_limited`
+- `per_tool.<tool>.rate_limited`
+
+Limitations: rate limiting is in-memory only, resets when the generated server restarts, and is not distributed across processes or machines. Redis and distributed rate limiting are intentionally out of scope for this MVP.
+
 ## Auth Passthrough
 
 v0.4.0 adds safe upstream authentication support for generated servers. Secrets are never written into generated files, audit logs, metrics, or responses.
@@ -599,6 +656,11 @@ auth:
   mode: none
   api_key_env: API_KEY
   api_key_header: X-API-Key
+rate_limit:
+  enabled: false
+  per_tool: 10
+  global: 100
+  window_seconds: 60
 ```
 
 For the JSONPlaceholder demo, set:
@@ -615,7 +677,7 @@ api_base_url: https://jsonplaceholder.typicode.com
 - No write execution.
 - No confirmation workflow UI.
 - No vector database or embedding cache optimization.
-- No rate limiting.
+- Rate limiting is in-memory only and not distributed.
 - No database-backed audit sink.
 - No production telemetry backend.
 - MCP mode uses a minimal stdio scaffold if the official Python MCP SDK is unavailable.

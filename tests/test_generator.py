@@ -2,8 +2,11 @@ import json
 import importlib.util
 from pathlib import Path
 
-from mcpgen.core.config import AuthConfig, MCPGenConfig
+from fastapi.testclient import TestClient
+
+from mcpgen.core.config import AuthConfig, MCPGenConfig, RateLimitConfig
 from mcpgen.core.generator import generate_project
+from mcpgen.runtime.rate_limit import reset_rate_limits
 
 
 def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
@@ -51,12 +54,20 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
         "api_key_env": "API_KEY",
         "api_key_header": "X-API-Key",
     }
+    assert runtime_config["rate_limit"] == {
+        "enabled": False,
+        "per_tool": 10,
+        "global": 100,
+        "window_seconds": 60,
+    }
     assert len(embeddings) == 5
     assert embeddings[0]["tool_name"] == "list_customers"
     assert env_example == "API_BASE_URL=https://api.example.com\n"
     assert "mode: fastapi" in generated_config
     assert "auth:" in generated_config
     assert "  mode: none" in generated_config
+    assert "rate_limit:" in generated_config
+    assert "  enabled: False" in generated_config
 
 
 def test_generate_project_honors_max_tools_config(tmp_path: Path) -> None:
@@ -298,3 +309,99 @@ def test_mcp_bearer_passthrough_requires_or_uses_auth_metadata(tmp_path: Path) -
     assert result["isError"] is False
     assert captured["params"] == {"customerId": "cus_123"}
     assert captured["incoming_headers"] == {"Authorization": "Bearer mcp-token"}
+
+
+def test_fastapi_global_rate_limit_returns_429(tmp_path: Path) -> None:
+    reset_rate_limits()
+    output_dir = tmp_path / "server"
+    generate_project(
+        Path("examples/openapi.yaml"),
+        output_dir,
+        config=MCPGenConfig(rate_limit=RateLimitConfig(enabled=True, global_=1, per_tool=10, window_seconds=60)),
+    )
+    module = load_generated_module(output_dir / "server.py", "generated_test_global_rate_limit")
+    client = TestClient(module.app)
+
+    first = client.post("/tools", json={"query": "invoice"})
+    second = client.post("/tools", json={"query": "invoice"})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.headers["retry-after"]
+    assert second.json()["status"] == "rate_limited"
+    assert second.json()["scope"] == "global"
+    metrics = module.metrics()
+    assert metrics["total_rate_limited"] == 1
+    audit_events = read_audit_events(output_dir)
+    assert audit_events[-1]["action"] == "rate_limited"
+
+
+def test_fastapi_per_tool_rate_limit_returns_429(tmp_path: Path) -> None:
+    reset_rate_limits()
+    output_dir = tmp_path / "server"
+    generate_project(
+        Path("examples/openapi.yaml"),
+        output_dir,
+        config=MCPGenConfig(rate_limit=RateLimitConfig(enabled=True, global_=100, per_tool=1, window_seconds=60)),
+    )
+    module = load_generated_module(output_dir / "server.py", "generated_test_tool_rate_limit")
+    client = TestClient(module.app)
+
+    first = client.post("/tools/list_invoices/dry-run", json={"inputs": {}})
+    second = client.post("/tools/list_invoices/dry-run", json={"inputs": {}})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.headers["retry-after"]
+    assert second.json()["scope"] == "per_tool"
+    metrics = module.metrics()
+    assert metrics["total_rate_limited"] == 1
+    assert metrics["per_tool"]["list_invoices"]["rate_limited"] == 1
+
+
+def test_rate_limit_disabled_allows_requests_and_health_is_not_limited(tmp_path: Path) -> None:
+    reset_rate_limits()
+    output_dir = tmp_path / "server"
+    generate_project(Path("examples/openapi.yaml"), output_dir)
+    module = load_generated_module(output_dir / "server.py", "generated_test_rate_limit_disabled")
+    client = TestClient(module.app)
+
+    for _ in range(3):
+        assert client.post("/tools/list_invoices/dry-run", json={"inputs": {}}).status_code == 200
+        assert client.get("/health").status_code == 200
+
+
+def test_mcp_tools_call_rate_limit_works(tmp_path: Path) -> None:
+    reset_rate_limits()
+    output_dir = tmp_path / "server"
+    generate_project(
+        Path("examples/openapi.yaml"),
+        output_dir,
+        config=MCPGenConfig(rate_limit=RateLimitConfig(enabled=True, global_=100, per_tool=1, window_seconds=60)),
+        mode="mcp",
+    )
+    module = load_generated_module(output_dir / "server.py", "generated_test_mcp_rate_limit")
+
+    first = module.call_mcp_tool("list_invoices", {})
+    second = module.call_mcp_tool("list_invoices", {})
+
+    assert first["isError"] is False
+    assert second["isError"] is True
+    assert '"status": "rate_limited"' in second["content"][0]["text"]
+    metrics = json.loads((output_dir / "logs" / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["total_rate_limited"] == 1
+    assert metrics["per_tool"]["list_invoices"]["rate_limited"] == 1
+
+
+def load_generated_module(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def read_audit_events(output_dir: Path) -> list[dict]:
+    audit_log = output_dir / "logs" / "audit.log"
+    return [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines()]

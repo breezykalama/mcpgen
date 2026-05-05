@@ -20,6 +20,10 @@ def test_default_config_is_safe() -> None:
     assert config.auth.mode == "none"
     assert config.auth.api_key_env == "API_KEY"
     assert config.auth.api_key_header == "X-API-Key"
+    assert config.rate_limit.enabled is False
+    assert config.rate_limit.per_tool == 10
+    assert config.rate_limit.global_ == 100
+    assert config.rate_limit.window_seconds == 60
 
 
 def test_load_config_from_yaml(tmp_path: Path) -> None:
@@ -43,6 +47,11 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
           mode: api_key
           api_key_env: BILLING_API_KEY
           api_key_header: X-Billing-Key
+        rate_limit:
+          enabled: true
+          per_tool: 2
+          global: 5
+          window_seconds: 30
         """,
         encoding="utf-8",
     )
@@ -63,3 +72,7 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     assert config.auth.mode == "api_key"
     assert config.auth.api_key_env == "BILLING_API_KEY"
     assert config.auth.api_key_header == "X-Billing-Key"
+    assert config.rate_limit.enabled is True
+    assert config.rate_limit.per_tool == 2
+    assert config.rate_limit.global_ == 5
+    assert config.rate_limit.window_seconds == 30

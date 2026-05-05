@@ -5,6 +5,12 @@ import yaml
 from pydantic import BaseModel, Field
 
 
+class AuthConfig(BaseModel):
+    mode: str = "none"
+    api_key_env: str = "API_KEY"
+    api_key_header: str = "X-API-Key"
+
+
 class MCPGenConfig(BaseModel):
     """Small, safe-by-default generation config."""
 
@@ -19,6 +25,7 @@ class MCPGenConfig(BaseModel):
     routing_mode: str = "semantic"
     metrics_enabled: bool = True
     metrics_path: str = "logs/metrics.json"
+    auth: AuthConfig = Field(default_factory=AuthConfig)
 
     def normalized_allowed_methods(self) -> set[str]:
         return {method.upper() for method in self.allowed_methods}
@@ -55,4 +62,5 @@ def dump_runtime_config(config: MCPGenConfig, mode: str = "fastapi") -> dict[str
         "routing_mode": config.routing_mode,
         "metrics_enabled": config.metrics_enabled,
         "metrics_path": config.metrics_path,
+        "auth": config.auth.model_dump(),
     }

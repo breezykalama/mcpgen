@@ -85,7 +85,7 @@ def test_policy_blocked_and_confirmation_required_increment_counts(tmp_path: Pat
 
 
 def test_execution_success_increments_counts_and_latency(monkeypatch, tmp_path: Path) -> None:
-    def fake_get(url, timeout):
+    def fake_get(url, headers, timeout):
         return httpx.Response(200, json={"ok": True}, request=httpx.Request("GET", url))
 
     monkeypatch.setattr("mcpgen.runtime.executor.httpx.get", fake_get)
@@ -109,7 +109,7 @@ def test_execution_success_increments_counts_and_latency(monkeypatch, tmp_path: 
 
 
 def test_execution_error_increments_counts_and_latency(monkeypatch, tmp_path: Path) -> None:
-    def fake_get(url, timeout):
+    def fake_get(url, headers, timeout):
         raise httpx.ConnectError("network unavailable", request=httpx.Request("GET", url))
 
     monkeypatch.setattr("mcpgen.runtime.executor.httpx.get", fake_get)

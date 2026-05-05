@@ -2,6 +2,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from mcpgen.runtime.audit import sanitize_event
+
 
 DEFAULT_METRICS_PATH = "logs/metrics.json"
 INTERNAL_KEYS = {"metrics_enabled", "metrics_path"}
@@ -16,7 +18,7 @@ def record_metric(event: dict, config: dict) -> None:
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
 
     metrics = _load_metrics(metrics_path)
-    _apply_event(metrics, event)
+    _apply_event(metrics, sanitize_event(event))
     metrics["last_updated"] = datetime.now(timezone.utc).isoformat()
     metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
 

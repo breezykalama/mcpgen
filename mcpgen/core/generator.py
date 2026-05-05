@@ -74,6 +74,7 @@ def write_generated_config(config: MCPGenConfig, mode: str, path: Path) -> None:
         "routing_mode": config.routing_mode,
         "metrics_enabled": config.metrics_enabled,
         "metrics_path": config.metrics_path,
+        "auth": config.auth.model_dump(),
     }
     path.write_text(json_to_yaml_like(data), encoding="utf-8")
 
@@ -84,6 +85,9 @@ def json_to_yaml_like(data: dict) -> str:
         if isinstance(value, list):
             lines.append(f"{key}:")
             lines.extend(f"  - {item}" for item in value)
+        elif isinstance(value, dict):
+            lines.append(f"{key}:")
+            lines.extend(f"  {item_key}: {item_value}" for item_key, item_value in value.items())
         else:
             lines.append(f"{key}: {value}")
     return "\n".join(lines) + "\n"

@@ -2,7 +2,7 @@ import json
 import importlib.util
 from pathlib import Path
 
-from mcpgen.core.config import MCPGenConfig
+from mcpgen.core.config import AuthConfig, MCPGenConfig
 from mcpgen.core.generator import generate_project
 
 
@@ -46,10 +46,17 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     assert runtime_config["routing_mode"] == "semantic"
     assert runtime_config["metrics_enabled"] is True
     assert runtime_config["metrics_path"] == "logs/metrics.json"
+    assert runtime_config["auth"] == {
+        "mode": "none",
+        "api_key_env": "API_KEY",
+        "api_key_header": "X-API-Key",
+    }
     assert len(embeddings) == 5
     assert embeddings[0]["tool_name"] == "list_customers"
     assert env_example == "API_BASE_URL=https://api.example.com\n"
     assert "mode: fastapi" in generated_config
+    assert "auth:" in generated_config
+    assert "  mode: none" in generated_config
 
 
 def test_generate_project_honors_max_tools_config(tmp_path: Path) -> None:
@@ -111,7 +118,7 @@ def test_generated_server_exposes_root_and_safety(tmp_path: Path) -> None:
     metrics = module.metrics()
     assert metrics["per_tool"]["create_invoice"]["policy_blocked"] == 1
 
-    def fake_execute_tool(tool_name, params, config, source="fastapi"):
+    def fake_execute_tool(tool_name, params, config, source="fastapi", incoming_headers=None):
         return {
             "tool": tool_name,
             "status": "success",
@@ -120,7 +127,13 @@ def test_generated_server_exposes_root_and_safety(tmp_path: Path) -> None:
         }
 
     module.execute_tool = fake_execute_tool
-    executed = module.execute(module.ExecuteRequest(tool_name="list_invoices", params={"customerId": "cus_123"}))
+    class FakeRequest:
+        headers = {}
+
+    executed = module.execute(
+        module.ExecuteRequest(tool_name="list_invoices", params={"customerId": "cus_123"}),
+        FakeRequest(),
+    )
     assert executed == {
         "tool": "list_invoices",
         "status": "success",
@@ -195,7 +208,7 @@ def test_mcp_safe_execute_calls_executor(tmp_path: Path) -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    def fake_execute_tool(tool_name, params, config, source="mcp"):
+    def fake_execute_tool(tool_name, params, config, source="mcp", incoming_headers=None):
         return {
             "tool": tool_name,
             "status": "success",
@@ -209,3 +222,79 @@ def test_mcp_safe_execute_calls_executor(tmp_path: Path) -> None:
     assert result["isError"] is False
     assert '"status": "success"' in result["content"][0]["text"]
     assert '"source": "mcp"' in result["content"][0]["text"]
+
+
+def test_mcp_api_key_mode_calls_executor(tmp_path: Path) -> None:
+    output_dir = tmp_path / "server"
+    generate_project(
+        Path("examples/openapi.yaml"),
+        output_dir,
+        config=MCPGenConfig(execution_mode="safe-execute", auth=AuthConfig(mode="api_key")),
+        mode="mcp",
+    )
+
+    spec = importlib.util.spec_from_file_location("generated_test_mcp_api_key_server", output_dir / "server.py")
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def fake_execute_tool(tool_name, params, config, source="mcp", incoming_headers=None):
+        return {
+            "tool": tool_name,
+            "status": "success",
+            "status_code": 200,
+            "data": {"auth_mode": config["auth"]["mode"], "incoming_headers": incoming_headers},
+        }
+
+    module.execute_tool = fake_execute_tool
+    result = module.call_mcp_tool("list_invoices", {"customerId": "cus_123"})
+
+    assert result["isError"] is False
+    assert '"auth_mode": "api_key"' in result["content"][0]["text"]
+    assert '"incoming_headers": {}' in result["content"][0]["text"]
+
+
+def test_mcp_bearer_passthrough_requires_or_uses_auth_metadata(tmp_path: Path) -> None:
+    output_dir = tmp_path / "server"
+    generate_project(
+        Path("examples/openapi.yaml"),
+        output_dir,
+        config=MCPGenConfig(execution_mode="safe-execute", auth=AuthConfig(mode="bearer_passthrough")),
+        mode="mcp",
+    )
+
+    spec = importlib.util.spec_from_file_location("generated_test_mcp_bearer_server", output_dir / "server.py")
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    captured = {}
+
+    def fake_execute_tool(tool_name, params, config, source="mcp", incoming_headers=None):
+        captured["params"] = params
+        captured["incoming_headers"] = incoming_headers
+        return {
+            "tool": tool_name,
+            "status": "success",
+            "status_code": 200,
+            "data": {"ok": True},
+        }
+
+    module.execute_tool = fake_execute_tool
+    missing = module.call_mcp_tool("list_invoices", {"customerId": "cus_123"})
+    assert missing["isError"] is True
+    assert "requires auth.authorization metadata" in missing["content"][0]["text"]
+
+    result = module.call_mcp_tool(
+        "list_invoices",
+        {
+            "customerId": "cus_123",
+            "auth": {"authorization": "Bearer mcp-token"},
+        },
+    )
+
+    assert result["isError"] is False
+    assert captured["params"] == {"customerId": "cus_123"}
+    assert captured["incoming_headers"] == {"Authorization": "Bearer mcp-token"}

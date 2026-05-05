@@ -5,6 +5,7 @@ from pathlib import Path
 
 DEFAULT_AUDIT_LOG_PATH = "logs/audit.log"
 INTERNAL_KEYS = {"audit_enabled", "audit_log_path"}
+SENSITIVE_KEY_PARTS = ("authorization", "bearer", "api_key", "apikey", "token", "secret", "auth", "key")
 
 
 def write_audit_event(event: dict) -> None:
@@ -15,7 +16,7 @@ def write_audit_event(event: dict) -> None:
     log_path = Path(event.get("audit_log_path") or DEFAULT_AUDIT_LOG_PATH)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    record = {key: value for key, value in event.items() if key not in INTERNAL_KEYS}
+    record = sanitize_event({key: value for key, value in event.items() if key not in INTERNAL_KEYS})
     record.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
 
     with log_path.open("a", encoding="utf-8") as audit_file:
@@ -44,3 +45,21 @@ def build_audit_event(
         "audit_enabled": config.get("audit_enabled", True),
         "audit_log_path": config.get("audit_log_path", DEFAULT_AUDIT_LOG_PATH),
     }
+
+
+def sanitize_event(value):
+    if isinstance(value, dict):
+        clean = {}
+        for key, item in value.items():
+            if is_sensitive_key(str(key)):
+                continue
+            clean[key] = sanitize_event(item)
+        return clean
+    if isinstance(value, list):
+        return [sanitize_event(item) for item in value]
+    return value
+
+
+def is_sensitive_key(key: str) -> bool:
+    normalized = key.lower().replace("-", "_")
+    return any(part in normalized for part in SENSITIVE_KEY_PARTS)

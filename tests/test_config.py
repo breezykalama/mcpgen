@@ -17,6 +17,9 @@ def test_default_config_is_safe() -> None:
     assert config.routing_mode == "semantic"
     assert config.metrics_enabled is True
     assert config.metrics_path == "logs/metrics.json"
+    assert config.auth.mode == "none"
+    assert config.auth.api_key_env == "API_KEY"
+    assert config.auth.api_key_header == "X-API-Key"
 
 
 def test_load_config_from_yaml(tmp_path: Path) -> None:
@@ -36,6 +39,10 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
         routing_mode: keyword
         metrics_enabled: false
         metrics_path: custom/metrics.json
+        auth:
+          mode: api_key
+          api_key_env: BILLING_API_KEY
+          api_key_header: X-Billing-Key
         """,
         encoding="utf-8",
     )
@@ -53,3 +60,6 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     assert config.routing_mode == "keyword"
     assert config.metrics_enabled is False
     assert config.metrics_path == "custom/metrics.json"
+    assert config.auth.mode == "api_key"
+    assert config.auth.api_key_env == "BILLING_API_KEY"
+    assert config.auth.api_key_header == "X-Billing-Key"

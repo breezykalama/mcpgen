@@ -9,9 +9,16 @@ from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.policy import evaluate_tool_policy
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
+SUPPORTED_AUTH_MODES = {"none", "bearer_passthrough", "api_key"}
 
 
-def execute_tool(tool_name: str, params: dict, config: dict, source: str = "fastapi") -> dict:
+def execute_tool(
+    tool_name: str,
+    params: dict,
+    config: dict,
+    source: str = "fastapi",
+    incoming_headers: dict | None = None,
+) -> dict:
     """Execute only policy-approved low-risk GET tools."""
     tool = find_tool(tool_name, config.get("tools") or [])
     if tool is None:
@@ -68,11 +75,22 @@ def execute_tool(tool_name: str, params: dict, config: dict, source: str = "fast
         }
 
     url = build_execution_url(api_base_url, tool, params)
+    try:
+        auth_headers = build_auth_headers(config, incoming_headers=incoming_headers)
+    except ValueError as exc:
+        write_execution_event(tool, policy, config, source, "execution_error", reason=str(exc), latency_ms=0.0)
+        return {
+            "tool": tool_name,
+            "status": "error",
+            "status_code": None,
+            "data": {"error": str(exc)},
+        }
+
     write_execution_event(tool, policy, config, source, "execution_started")
     started_at = perf_counter()
 
     try:
-        response = httpx.get(url, timeout=DEFAULT_TIMEOUT_SECONDS)
+        response = httpx.get(url, headers=auth_headers, timeout=DEFAULT_TIMEOUT_SECONDS)
         response.raise_for_status()
         data = parse_response_data(response)
         write_execution_event(
@@ -155,6 +173,37 @@ def build_execution_url(api_base_url: str, tool: dict, params: dict) -> str:
     if query_params:
         url = f"{url}?{urlencode(query_params)}"
     return url
+
+
+def build_auth_headers(config: dict, incoming_headers: dict | None = None) -> dict:
+    auth_config = config.get("auth") or {}
+    mode = auth_config.get("mode", "none")
+
+    if mode == "none":
+        return {}
+
+    if mode == "bearer_passthrough":
+        authorization = find_header(incoming_headers or {}, "authorization")
+        if authorization and authorization.startswith("Bearer "):
+            return {"Authorization": authorization}
+        return {}
+
+    if mode == "api_key":
+        env_name = auth_config.get("api_key_env") or "API_KEY"
+        header_name = auth_config.get("api_key_header") or "X-API-Key"
+        api_key = os.getenv(env_name)
+        if not api_key:
+            raise ValueError(f"Missing API key environment variable: {env_name}.")
+        return {header_name: api_key}
+
+    raise ValueError(f"Unsupported auth mode: {mode}.")
+
+
+def find_header(headers: dict, name: str) -> str | None:
+    for key, value in headers.items():
+        if str(key).lower() == name.lower():
+            return str(value)
+    return None
 
 
 def input_location(tool: dict, name: str) -> str:

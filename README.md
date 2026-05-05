@@ -45,6 +45,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 - Central policy engine
 - JSONL audit logging
 - Runtime metrics for routing, policy decisions, dry-runs, execution outcomes, and latency
+- Upstream auth passthrough and API key injection without hardcoded secrets
 - CLI commands: `generate`, `inspect`
 - Config via `mcpgen.yaml`
 
@@ -479,6 +480,104 @@ Example response:
 
 Metrics are MVP-level and file-based. They are useful for local demos and development visibility, but they are not a replacement for production telemetry systems.
 
+## Auth Passthrough
+
+v0.4.0 adds safe upstream authentication support for generated servers. Secrets are never written into generated files, audit logs, metrics, or responses.
+
+Default config:
+
+```yaml
+auth:
+  mode: none
+  api_key_env: API_KEY
+  api_key_header: X-API-Key
+```
+
+### mode: none
+
+No auth headers are sent upstream.
+
+```yaml
+auth:
+  mode: none
+```
+
+### mode: bearer_passthrough
+
+FastAPI mode can forward an incoming `Authorization` header to the upstream API only when it starts with `Bearer `.
+
+```yaml
+auth:
+  mode: bearer_passthrough
+```
+
+Example request:
+
+```bash
+curl -X POST http://127.0.0.1:8001/execute \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"tool_name\":\"get_user_by_id\",\"params\":{\"id\":1}}"
+```
+
+PowerShell:
+
+```powershell
+$env:TOKEN = "your-token"
+Invoke-RestMethod -Method Post http://127.0.0.1:8001/execute `
+  -ContentType "application/json" `
+  -Headers @{ Authorization = "Bearer $env:TOKEN" } `
+  -Body '{"tool_name":"get_user_by_id","params":{"id":1}}'
+```
+
+MCP stdio mode does not have HTTP headers. For `bearer_passthrough`, provide explicit auth metadata in `tools/call` arguments:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "get_user_by_id",
+    "arguments": {
+      "id": 1,
+      "auth": {
+        "authorization": "Bearer your-token"
+      }
+    }
+  }
+}
+```
+
+The `auth` metadata is stripped before tool parameter handling and is not logged.
+
+### mode: api_key
+
+API key mode reads a key from an environment variable and injects it into the configured upstream header.
+
+```yaml
+auth:
+  mode: api_key
+  api_key_env: JSONPLACEHOLDER_API_KEY
+  api_key_header: X-API-Key
+```
+
+Bash:
+
+```bash
+export JSONPLACEHOLDER_API_KEY=your-api-key
+```
+
+PowerShell:
+
+```powershell
+$env:JSONPLACEHOLDER_API_KEY = "your-api-key"
+```
+
+If the environment variable is missing, `/execute` returns a clear error and does not call the upstream API.
+
+OAuth2 is not implemented yet. It is listed in the roadmap.
+
 ## Configuration
 
 Default config:
@@ -496,6 +595,10 @@ audit_log_path: logs/audit.log
 routing_mode: semantic
 metrics_enabled: true
 metrics_path: logs/metrics.json
+auth:
+  mode: none
+  api_key_env: API_KEY
+  api_key_header: X-API-Key
 ```
 
 For the JSONPlaceholder demo, set:
@@ -507,7 +610,8 @@ api_base_url: https://jsonplaceholder.typicode.com
 ## Current Limitations
 
 - This is a production-oriented MVP, not a production-ready framework.
-- No authentication or secret handling beyond environment-variable preparation.
+- Auth support is limited to bearer passthrough and API key header injection.
+- No OAuth2 flow yet.
 - No write execution.
 - No confirmation workflow UI.
 - No vector database or embedding cache optimization.
@@ -520,6 +624,7 @@ api_base_url: https://jsonplaceholder.typicode.com
 
 - Official MCP SDK integration
 - Auth and secret management
+- OAuth2 support
 - Confirmation workflow for enabled medium-risk tools
 - Rate limiting
 - Request/response validation

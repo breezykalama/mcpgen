@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 
 from mcpgen.runtime.registry import ToolRegistry
@@ -157,8 +157,14 @@ def dry_run_tool(tool_name: str, request: DryRunRequest):
 
 
 @app.post("/execute")
-def execute(request: ExecuteRequest):
-    return execute_tool(request.tool_name, request.params, execution_config, source="fastapi")
+def execute(payload: ExecuteRequest, request: Request):
+    return execute_tool(
+        payload.tool_name,
+        payload.params,
+        execution_config,
+        source="fastapi",
+        incoming_headers=dict(request.headers),
+    )
 
 
 @app.get("/health")

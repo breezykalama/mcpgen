@@ -50,6 +50,7 @@ def list_mcp_tools() -> list[dict]:
 
 
 def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
+    arguments = arguments or {}
     tool = all_registry.get_tool(name)
     if tool is None:
         tool_data = {"name": name, "method": "unknown", "path": "unknown", "risk_level": "unknown"}
@@ -88,7 +89,17 @@ def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
         return mcp_policy_result(policy)
 
     if runtime_config.get("execution_mode") == "safe-execute":
-        result = execute_tool(name, arguments or {}, execution_config, source="mcp")
+        auth_headers = mcp_auth_headers(arguments)
+        if auth_headers.get("error"):
+            return mcp_auth_error(auth_headers["error"])
+        clean_arguments = {key: value for key, value in arguments.items() if key != "auth"}
+        result = execute_tool(
+            name,
+            clean_arguments,
+            execution_config,
+            source="mcp",
+            incoming_headers=auth_headers,
+        )
         return {
             "content": [
                 {
@@ -99,7 +110,8 @@ def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
             "isError": result.get("status") == "error",
         }
 
-    preview = build_dry_run_request(tool, arguments or {}, api_base_url)
+    preview_arguments = {key: value for key, value in arguments.items() if key != "auth"}
+    preview = build_dry_run_request(tool, preview_arguments, api_base_url)
     record_metric(
         {
             "action": "dry_run",
@@ -139,6 +151,37 @@ def mcp_policy_result(policy: dict) -> dict:
             {
                 "type": "text",
                 "text": json.dumps(policy, indent=2),
+            }
+        ],
+        "isError": True,
+    }
+
+
+def mcp_auth_headers(arguments: dict) -> dict:
+    auth_config = runtime_config.get("auth") or {}
+    if auth_config.get("mode") != "bearer_passthrough":
+        return {}
+
+    authorization = (arguments.get("auth") or {}).get("authorization")
+    if not authorization:
+        return {"error": "bearer_passthrough requires auth.authorization metadata for MCP tools/call."}
+    if not str(authorization).startswith("Bearer "):
+        return {"error": "bearer_passthrough requires an Authorization value that starts with Bearer."}
+    return {"Authorization": authorization}
+
+
+def mcp_auth_error(message: str) -> dict:
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "status": "error",
+                        "error": message,
+                    },
+                    indent=2,
+                ),
             }
         ],
         "isError": True,

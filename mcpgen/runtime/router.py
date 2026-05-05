@@ -3,6 +3,7 @@ from collections import Counter
 
 from mcpgen.core.models import Tool
 from mcpgen.runtime.embedding import cosine_similarity, embed_query
+from mcpgen.runtime.metrics import record_metric
 
 
 def select_relevant_tools(query: str, tools: list[Tool], limit: int = 5) -> list[Tool]:
@@ -16,15 +17,22 @@ def rank_relevant_tools(
     limit: int = 5,
     embeddings: list[dict] | None = None,
     routing_mode: str = "keyword",
+    config: dict | None = None,
 ) -> list[dict]:
     """Rank tools using semantic embeddings when available, otherwise keywords."""
     if routing_mode == "semantic":
         try:
-            return rank_relevant_tools_semantic(query, tools, embeddings or [], limit=limit)
+            ranked = rank_relevant_tools_semantic(query, tools, embeddings or [], limit=limit)
+            record_routing_metrics(ranked, config)
+            return ranked
         except Exception:
-            return rank_relevant_tools_keyword(query, tools, limit=limit)
+            ranked = rank_relevant_tools_keyword(query, tools, limit=limit)
+            record_routing_metrics(ranked, config)
+            return ranked
 
-    return rank_relevant_tools_keyword(query, tools, limit=limit)
+    ranked = rank_relevant_tools_keyword(query, tools, limit=limit)
+    record_routing_metrics(ranked, config)
+    return ranked
 
 
 def rank_relevant_tools_semantic(query: str, tools: list[Tool], embeddings: list[dict], limit: int = 5) -> list[dict]:
@@ -103,3 +111,19 @@ def normalize_word(word: str) -> str:
     if len(word) > 3 and word.endswith("s"):
         return word[:-1]
     return word
+
+
+def record_routing_metrics(ranked_tools: list[dict], config: dict | None) -> None:
+    if config is None:
+        return
+
+    for item in ranked_tools:
+        tool = item["tool"]
+        record_metric(
+            {
+                "action": "tool_routed",
+                "tool_name": tool.name,
+                "routing_mode": item.get("routing_mode", config.get("routing_mode", "keyword")),
+            },
+            config,
+        )

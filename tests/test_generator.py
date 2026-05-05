@@ -44,6 +44,8 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     assert runtime_config["audit_enabled"] is True
     assert runtime_config["audit_log_path"] == "logs/audit.log"
     assert runtime_config["routing_mode"] == "semantic"
+    assert runtime_config["metrics_enabled"] is True
+    assert runtime_config["metrics_path"] == "logs/metrics.json"
     assert len(embeddings) == 5
     assert embeddings[0]["tool_name"] == "list_customers"
     assert env_example == "API_BASE_URL=https://api.example.com\n"
@@ -72,6 +74,7 @@ def test_generated_server_exposes_root_and_safety(tmp_path: Path) -> None:
     assert module.root()["endpoints"]["safety"] == "/safety"
     assert module.root()["endpoints"]["dry_run"] == "POST /tools/{tool_name}/dry-run"
     assert module.root()["endpoints"]["execute"] == "POST /execute"
+    assert module.root()["endpoints"]["metrics"] == "/metrics"
     assert module.safety()["counts"]["withheld_tools"] == 3
     routed = module.list_relevant_tools(module.ToolQuery(query="invoice customer"))
     assert routed["tools"][0]["score"] >= 1
@@ -91,6 +94,11 @@ def test_generated_server_exposes_root_and_safety(tmp_path: Path) -> None:
     audit_log = output_dir / "logs" / "audit.log"
     audit_events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines()]
     assert [event["action"] for event in audit_events[:2]] == ["policy_evaluation", "dry_run"]
+    metrics = module.metrics()
+    assert metrics["total_tool_routes"] >= 1
+    assert metrics["total_policy_evaluations"] == 1
+    assert metrics["total_dry_runs"] == 1
+    assert metrics["per_tool"]["list_invoices"]["dry_runs"] == 1
 
     blocked = module.dry_run_tool(
         "create_invoice",
@@ -100,6 +108,8 @@ def test_generated_server_exposes_root_and_safety(tmp_path: Path) -> None:
     assert blocked["tool_name"] == "create_invoice"
     audit_events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines()]
     assert audit_events[-1]["status"] == "blocked"
+    metrics = module.metrics()
+    assert metrics["per_tool"]["create_invoice"]["policy_blocked"] == 1
 
     def fake_execute_tool(tool_name, params, config, source="fastapi"):
         return {
@@ -170,6 +180,9 @@ def test_generate_project_supports_mcp_mode(tmp_path: Path) -> None:
     assert audit_events[0]["action"] == "policy_evaluation"
     assert audit_events[1]["action"] == "dry_run"
     assert audit_events[-1]["status"] == "blocked"
+    metrics = json.loads((output_dir / "logs" / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["total_policy_evaluations"] == 2
+    assert metrics["total_dry_runs"] == 1
 
 
 def test_mcp_safe_execute_calls_executor(tmp_path: Path) -> None:

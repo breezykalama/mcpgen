@@ -15,6 +15,8 @@ def test_default_config_is_safe() -> None:
     assert config.audit_enabled is True
     assert config.audit_log_path == "logs/audit.log"
     assert config.routing_mode == "semantic"
+    assert config.metrics_enabled is True
+    assert config.metrics_path == "logs/metrics.json"
 
 
 def test_load_config_from_yaml(tmp_path: Path) -> None:
@@ -32,6 +34,8 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
         audit_enabled: false
         audit_log_path: custom/audit.log
         routing_mode: keyword
+        metrics_enabled: false
+        metrics_path: custom/metrics.json
         """,
         encoding="utf-8",
     )
@@ -47,3 +51,5 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     assert config.audit_enabled is False
     assert config.audit_log_path == "custom/audit.log"
     assert config.routing_mode == "keyword"
+    assert config.metrics_enabled is False
+    assert config.metrics_path == "custom/metrics.json"

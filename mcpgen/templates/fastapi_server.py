@@ -9,6 +9,7 @@ from mcpgen.runtime.registry import ToolRegistry
 from mcpgen.runtime.audit import build_audit_event, write_audit_event
 from mcpgen.runtime.dry_run import build_dry_run_request
 from mcpgen.runtime.executor import execute_tool
+from mcpgen.runtime.metrics import read_metrics, record_metric, reset_metrics
 from mcpgen.runtime.policy import evaluate_tool_policy
 from mcpgen.runtime.router import rank_relevant_tools
 
@@ -38,7 +39,12 @@ audit_config = dict(runtime_config)
 audit_log_path = Path(audit_config.get("audit_log_path", "logs/audit.log"))
 if not audit_log_path.is_absolute():
     audit_config["audit_log_path"] = str(BASE_DIR / audit_log_path)
-execution_config = dict(audit_config)
+metrics_config = dict(audit_config)
+metrics_path = Path(metrics_config.get("metrics_path", "logs/metrics.json"))
+if not metrics_path.is_absolute():
+    metrics_config["metrics_path"] = str(BASE_DIR / metrics_path)
+policy_config = {**metrics_config, "source": "fastapi"}
+execution_config = dict(metrics_config)
 execution_config["tools"] = [tool.model_dump(mode="json") for tool in all_registry.list_tools()]
 
 
@@ -55,6 +61,7 @@ def root():
             "dry_run": "POST /tools/{tool_name}/dry-run",
             "execute": "POST /execute",
             "safety": "/safety",
+            "metrics": "/metrics",
             "docs": "/docs",
         },
     }
@@ -68,6 +75,7 @@ def list_relevant_tools(request: ToolQuery):
         limit=runtime_config.get("max_tools", 5),
         embeddings=tool_embeddings,
         routing_mode=runtime_config.get("routing_mode", "semantic"),
+        config=metrics_config,
     )
     return {
         "tools": [
@@ -92,7 +100,7 @@ def dry_run_tool(tool_name: str, request: DryRunRequest):
     tool = all_registry.get_tool(tool_name)
     if tool is None:
         tool_data = {"name": tool_name, "method": "unknown", "path": "unknown", "risk_level": "unknown"}
-        policy = evaluate_tool_policy(tool_data, runtime_config, mode=runtime_config.get("execution_mode", "dry-run"))
+        policy = evaluate_tool_policy(tool_data, policy_config, mode=runtime_config.get("execution_mode", "dry-run"))
         write_audit_event(
             build_audit_event(
                 tool=tool_data,
@@ -107,7 +115,7 @@ def dry_run_tool(tool_name: str, request: DryRunRequest):
     tool_data = tool.model_dump(mode="json")
     policy = evaluate_tool_policy(
         tool_data,
-        runtime_config,
+        policy_config,
         mode=runtime_config.get("execution_mode", "dry-run"),
     )
     write_audit_event(
@@ -123,6 +131,19 @@ def dry_run_tool(tool_name: str, request: DryRunRequest):
         return policy
 
     preview = build_dry_run_request(tool, request.inputs, api_base_url)
+    record_metric(
+        {
+            "action": "dry_run",
+            "tool_name": tool.name,
+            "method": tool.method,
+            "path": tool.path,
+            "risk_level": tool.risk_level.value,
+            "status": policy["status"],
+            "allowed": policy["allowed"],
+            "source": "fastapi",
+        },
+        metrics_config,
+    )
     write_audit_event(
         build_audit_event(
             tool=tool_data,
@@ -148,3 +169,14 @@ def health():
 @app.get("/safety")
 def safety():
     return safety_report
+
+
+@app.get("/metrics")
+def metrics():
+    return read_metrics(metrics_config)
+
+
+@app.post("/metrics/reset")
+def reset_runtime_metrics():
+    reset_metrics(metrics_config)
+    return read_metrics(metrics_config)

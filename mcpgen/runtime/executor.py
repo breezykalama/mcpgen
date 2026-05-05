@@ -1,9 +1,11 @@
 import os
+from time import perf_counter
 from urllib.parse import urlencode
 
 import httpx
 
 from mcpgen.runtime.audit import build_audit_event, write_audit_event
+from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.policy import evaluate_tool_policy
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
@@ -13,9 +15,21 @@ def execute_tool(tool_name: str, params: dict, config: dict, source: str = "fast
     """Execute only policy-approved low-risk GET tools."""
     tool = find_tool(tool_name, config.get("tools") or [])
     if tool is None:
+        record_metric(
+            {
+                "action": "execution_error",
+                "tool_name": tool_name,
+                "status": "error",
+                "allowed": False,
+                "source": source,
+                "latency_ms": 0.0,
+            },
+            config,
+        )
         return execution_error(tool_name, "Tool not found.", source=source)
 
-    policy = evaluate_tool_policy(tool, config, mode=config.get("execution_mode", "dry-run"))
+    policy_config = {**config, "source": source}
+    policy = evaluate_tool_policy(tool, policy_config, mode=config.get("execution_mode", "dry-run"))
     if not is_executable_get(tool, policy):
         if policy.get("allowed"):
             policy = {
@@ -34,6 +48,7 @@ def execute_tool(tool_name: str, params: dict, config: dict, source: str = "fast
                 action="execution_blocked",
             )
         )
+        record_execution_metric(tool, policy, config, source, "execution_blocked")
         return {
             "tool": tool_name,
             "status": "error",
@@ -44,7 +59,7 @@ def execute_tool(tool_name: str, params: dict, config: dict, source: str = "fast
     api_base_url = os.getenv("API_BASE_URL") or config.get("api_base_url")
     if not api_base_url:
         error = "Missing api_base_url config or API_BASE_URL environment variable."
-        write_execution_event(tool, policy, config, source, "execution_error", reason=error)
+        write_execution_event(tool, policy, config, source, "execution_error", reason=error, latency_ms=0.0)
         return {
             "tool": tool_name,
             "status": "error",
@@ -54,12 +69,20 @@ def execute_tool(tool_name: str, params: dict, config: dict, source: str = "fast
 
     url = build_execution_url(api_base_url, tool, params)
     write_execution_event(tool, policy, config, source, "execution_started")
+    started_at = perf_counter()
 
     try:
         response = httpx.get(url, timeout=DEFAULT_TIMEOUT_SECONDS)
         response.raise_for_status()
         data = parse_response_data(response)
-        write_execution_event(tool, policy, config, source, "execution_success")
+        write_execution_event(
+            tool,
+            policy,
+            config,
+            source,
+            "execution_success",
+            latency_ms=elapsed_ms(started_at),
+        )
         return {
             "tool": tool_name,
             "status": "success",
@@ -67,7 +90,15 @@ def execute_tool(tool_name: str, params: dict, config: dict, source: str = "fast
             "data": data,
         }
     except httpx.HTTPStatusError as exc:
-        write_execution_event(tool, policy, config, source, "execution_error", reason=str(exc))
+        write_execution_event(
+            tool,
+            policy,
+            config,
+            source,
+            "execution_error",
+            reason=str(exc),
+            latency_ms=elapsed_ms(started_at),
+        )
         return {
             "tool": tool_name,
             "status": "error",
@@ -75,7 +106,15 @@ def execute_tool(tool_name: str, params: dict, config: dict, source: str = "fast
             "data": parse_response_data(exc.response),
         }
     except httpx.HTTPError as exc:
-        write_execution_event(tool, policy, config, source, "execution_error", reason=str(exc))
+        write_execution_event(
+            tool,
+            policy,
+            config,
+            source,
+            "execution_error",
+            reason=str(exc),
+            latency_ms=elapsed_ms(started_at),
+        )
         return {
             "tool": tool_name,
             "status": "error",
@@ -130,7 +169,15 @@ def parse_response_data(response: httpx.Response):
         return response.text
 
 
-def write_execution_event(tool: dict, policy: dict, config: dict, source: str, action: str, reason: str | None = None) -> None:
+def write_execution_event(
+    tool: dict,
+    policy: dict,
+    config: dict,
+    source: str,
+    action: str,
+    reason: str | None = None,
+    latency_ms: float | None = None,
+) -> None:
     event_policy = dict(policy)
     if reason is not None:
         event_policy["reason"] = reason
@@ -143,6 +190,35 @@ def write_execution_event(tool: dict, policy: dict, config: dict, source: str, a
             action=action,
         )
     )
+    record_execution_metric(tool, event_policy, config, source, action, latency_ms=latency_ms)
+
+
+def record_execution_metric(
+    tool: dict,
+    policy: dict,
+    config: dict,
+    source: str,
+    action: str,
+    latency_ms: float | None = None,
+) -> None:
+    record_metric(
+        {
+            "action": action,
+            "tool_name": policy.get("tool_name") or tool.get("name", "unknown"),
+            "method": tool.get("method", "unknown"),
+            "path": tool.get("path", "unknown"),
+            "risk_level": policy.get("risk_level") or tool.get("risk_level", "unknown"),
+            "status": policy.get("status", "unknown"),
+            "allowed": policy.get("allowed", False),
+            "source": source,
+            "latency_ms": latency_ms,
+        },
+        config,
+    )
+
+
+def elapsed_ms(started_at: float) -> float:
+    return round((perf_counter() - started_at) * 1000, 3)
 
 
 def execution_error(tool_name: str, message: str, source: str) -> dict:

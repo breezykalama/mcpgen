@@ -72,6 +72,8 @@ def write_generated_config(config: MCPGenConfig, mode: str, path: Path) -> None:
         "audit_enabled": config.audit_enabled,
         "audit_log_path": config.audit_log_path,
         "routing_mode": config.routing_mode,
+        "metrics_enabled": config.metrics_enabled,
+        "metrics_path": config.metrics_path,
     }
     path.write_text(json_to_yaml_like(data), encoding="utf-8")
 

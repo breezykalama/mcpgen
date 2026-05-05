@@ -22,6 +22,7 @@ MCPGen reads an OpenAPI YAML or JSON file and generates:
 - dry-run previews
 - safe `GET` execution
 - JSONL audit logs
+- file-based runtime metrics
 - semantic tool routing with keyword fallback
 
 The default behavior is intentionally conservative: only low-risk `GET` tools are exposed.
@@ -43,6 +44,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 - Safe real execution for low-risk `GET` tools only
 - Central policy engine
 - JSONL audit logging
+- Runtime metrics for routing, policy decisions, dry-runs, execution outcomes, and latency
 - CLI commands: `generate`, `inspect`
 - Config via `mcpgen.yaml`
 
@@ -60,6 +62,7 @@ OpenAPI spec
   -> semantic/keyword router
   -> dry-run or safe GET execution
   -> audit log
+  -> metrics summary
 ```
 
 ## Quick Start
@@ -105,6 +108,7 @@ http://127.0.0.1:8001/
 http://127.0.0.1:8001/docs
 http://127.0.0.1:8001/tools
 http://127.0.0.1:8001/safety
+http://127.0.0.1:8001/metrics
 ```
 
 ## Example OpenAPI Input
@@ -263,6 +267,18 @@ PowerShell equivalent:
 Get-Content logs\audit.log
 ```
 
+Show metrics:
+
+```bash
+curl http://127.0.0.1:8001/metrics
+```
+
+PowerShell equivalent:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8001/metrics
+```
+
 ## MCP Mode
 
 Generate an MCP-style stdio server:
@@ -397,6 +413,72 @@ Actions include:
 - `execution_error`
 - `execution_blocked`
 
+Audit is the event trail. It answers what happened, when, and why for each attempt.
+
+## Observability Metrics
+
+v0.3.0 adds lightweight aggregate metrics for generated servers. Metrics are stored as JSON at:
+
+```text
+logs/metrics.json
+```
+
+Config:
+
+```yaml
+metrics_enabled: true
+metrics_path: logs/metrics.json
+```
+
+Metrics track:
+
+- total tool routes
+- total policy evaluations
+- dry-runs
+- execution starts, successes, errors, and blocked attempts
+- confirmation-required decisions
+- per-tool route, policy, dry-run, execution, success, error, and blocked counts
+- average execution latency in milliseconds per tool
+- last updated timestamp
+
+FastAPI mode exposes:
+
+```text
+GET /metrics
+POST /metrics/reset
+```
+
+Example response:
+
+```json
+{
+  "total_tool_routes": 1,
+  "total_policy_evaluations": 2,
+  "total_executions": 1,
+  "total_execution_success": 1,
+  "total_execution_errors": 0,
+  "total_execution_blocked": 1,
+  "total_dry_runs": 1,
+  "total_confirmation_required": 0,
+  "per_tool": {
+    "get_user_by_id": {
+      "routed": 1,
+      "policy_allowed": 2,
+      "policy_blocked": 0,
+      "dry_runs": 1,
+      "executions": 1,
+      "successes": 1,
+      "errors": 0,
+      "blocked": 0,
+      "average_execution_latency_ms": 42.5
+    }
+  },
+  "last_updated": "2026-05-05T12:00:00+00:00"
+}
+```
+
+Metrics are MVP-level and file-based. They are useful for local demos and development visibility, but they are not a replacement for production telemetry systems.
+
 ## Configuration
 
 Default config:
@@ -411,6 +493,9 @@ enabled_tools: []
 execution_mode: dry-run
 audit_enabled: true
 audit_log_path: logs/audit.log
+routing_mode: semantic
+metrics_enabled: true
+metrics_path: logs/metrics.json
 ```
 
 For the JSONPlaceholder demo, set:
@@ -428,6 +513,7 @@ api_base_url: https://jsonplaceholder.typicode.com
 - No vector database or embedding cache optimization.
 - No rate limiting.
 - No database-backed audit sink.
+- No production telemetry backend.
 - MCP mode uses a minimal stdio scaffold if the official Python MCP SDK is unavailable.
 
 ## Roadmap

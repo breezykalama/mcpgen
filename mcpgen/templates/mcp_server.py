@@ -6,6 +6,7 @@ from pathlib import Path
 from mcpgen.runtime.audit import build_audit_event, write_audit_event
 from mcpgen.runtime.dry_run import build_dry_run_request
 from mcpgen.runtime.executor import execute_tool
+from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.policy import evaluate_tool_policy
 from mcpgen.runtime.registry import ToolRegistry
 
@@ -28,7 +29,12 @@ audit_config = dict(runtime_config)
 audit_log_path = Path(audit_config.get("audit_log_path", "logs/audit.log"))
 if not audit_log_path.is_absolute():
     audit_config["audit_log_path"] = str(BASE_DIR / audit_log_path)
-execution_config = dict(audit_config)
+metrics_config = dict(audit_config)
+metrics_path = Path(metrics_config.get("metrics_path", "logs/metrics.json"))
+if not metrics_path.is_absolute():
+    metrics_config["metrics_path"] = str(BASE_DIR / metrics_path)
+policy_config = {**metrics_config, "source": "mcp"}
+execution_config = dict(metrics_config)
 execution_config["tools"] = [tool.model_dump(mode="json") for tool in all_registry.list_tools()]
 
 
@@ -49,7 +55,7 @@ def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
         tool_data = {"name": name, "method": "unknown", "path": "unknown", "risk_level": "unknown"}
         policy = evaluate_tool_policy(
             tool_data,
-            runtime_config,
+            policy_config,
             mode=runtime_config.get("execution_mode", "dry-run"),
         )
         write_audit_event(
@@ -66,7 +72,7 @@ def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
     tool_data = tool.model_dump(mode="json")
     policy = evaluate_tool_policy(
         tool_data,
-        runtime_config,
+        policy_config,
         mode=runtime_config.get("execution_mode", "dry-run"),
     )
     write_audit_event(
@@ -94,6 +100,19 @@ def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
         }
 
     preview = build_dry_run_request(tool, arguments or {}, api_base_url)
+    record_metric(
+        {
+            "action": "dry_run",
+            "tool_name": tool.name,
+            "method": tool.method,
+            "path": tool.path,
+            "risk_level": tool.risk_level.value,
+            "status": policy["status"],
+            "allowed": policy["allowed"],
+            "source": "mcp",
+        },
+        metrics_config,
+    )
     write_audit_event(
         build_audit_event(
             tool=tool_data,

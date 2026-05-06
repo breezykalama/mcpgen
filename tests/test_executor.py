@@ -85,6 +85,43 @@ def test_path_param_replacement_and_query_params() -> None:
     assert url == "https://api.example.test/users/1?include=profile"
 
 
+def test_execution_validates_required_inputs_before_http(monkeypatch, tmp_path: Path) -> None:
+    called = False
+
+    def fake_get(url, headers, timeout):
+        nonlocal called
+        called = True
+        return httpx.Response(200, json={"ok": True}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr("mcpgen.runtime.executor.httpx.get", fake_get)
+    config = make_config(tmp_path, [get_user_tool()])
+
+    result = execute_tool("get_user_by_id", {}, config)
+
+    assert called is False
+    assert result["status"] == "error"
+    assert result["data"]["status"] == "validation_error"
+    assert result["data"]["errors"][0]["field"] == "id"
+
+
+def test_execution_validates_input_types_before_http(monkeypatch, tmp_path: Path) -> None:
+    called = False
+
+    def fake_get(url, headers, timeout):
+        nonlocal called
+        called = True
+        return httpx.Response(200, json={"ok": True}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr("mcpgen.runtime.executor.httpx.get", fake_get)
+    config = make_config(tmp_path, [get_user_tool()])
+
+    result = execute_tool("get_user_by_id", {"id": "1"}, config)
+
+    assert called is False
+    assert result["status"] == "error"
+    assert result["data"]["errors"][0]["reason"] == "expected integer"
+
+
 def test_missing_api_base_url_error(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("API_BASE_URL", raising=False)
     config = make_config(tmp_path, [list_invoice_tool()], api_base_url="")

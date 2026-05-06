@@ -336,6 +336,20 @@ def test_fastapi_global_rate_limit_returns_429(tmp_path: Path) -> None:
     assert audit_events[-1]["action"] == "rate_limited"
 
 
+def test_generated_fastapi_dry_run_validates_inputs(tmp_path: Path) -> None:
+    output_dir = tmp_path / "server"
+    generate_project(Path("examples/jsonplaceholder.openapi.yaml"), output_dir)
+    module = load_generated_module(output_dir / "server.py", "generated_test_fastapi_validation")
+
+    missing = module.dry_run_tool("get_user_by_id", module.DryRunRequest(inputs={}))
+    wrong_type = module.dry_run_tool("get_user_by_id", module.DryRunRequest(inputs={"id": "1"}))
+
+    assert missing["status"] == "validation_error"
+    assert missing["errors"][0]["field"] == "id"
+    assert wrong_type["status"] == "validation_error"
+    assert wrong_type["errors"][0]["reason"] == "expected integer"
+
+
 def test_fastapi_per_tool_rate_limit_returns_429(tmp_path: Path) -> None:
     reset_rate_limits()
     output_dir = tmp_path / "server"
@@ -391,6 +405,18 @@ def test_mcp_tools_call_rate_limit_works(tmp_path: Path) -> None:
     metrics = json.loads((output_dir / "logs" / "metrics.json").read_text(encoding="utf-8"))
     assert metrics["total_rate_limited"] == 1
     assert metrics["per_tool"]["list_invoices"]["rate_limited"] == 1
+
+
+def test_generated_mcp_tools_call_validates_inputs(tmp_path: Path) -> None:
+    output_dir = tmp_path / "server"
+    generate_project(Path("examples/jsonplaceholder.openapi.yaml"), output_dir, mode="mcp")
+    module = load_generated_module(output_dir / "server.py", "generated_test_mcp_validation")
+
+    result = module.call_mcp_tool("get_user_by_id", {})
+
+    assert result["isError"] is True
+    assert '"status": "validation_error"' in result["content"][0]["text"]
+    assert '"field": "id"' in result["content"][0]["text"]
 
 
 def load_generated_module(path: Path, name: str):

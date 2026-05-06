@@ -14,6 +14,7 @@ from mcpgen.runtime.metrics import read_metrics, record_metric, reset_metrics
 from mcpgen.runtime.policy import evaluate_tool_policy
 from mcpgen.runtime.rate_limit import check_rate_limit, record_rate_limit_hit
 from mcpgen.runtime.router import rank_relevant_tools
+from mcpgen.runtime.validation import validate_tool_inputs
 
 
 class ToolQuery(BaseModel):
@@ -139,6 +140,10 @@ def dry_run_tool(tool_name: str, request: DryRunRequest):
     )
     if not policy["allowed"]:
         return policy
+
+    validation = validate_tool_inputs(tool_data, request.inputs)
+    if not validation["valid"]:
+        return validation
 
     preview = build_dry_run_request(tool, request.inputs, api_base_url)
     record_metric(

@@ -10,6 +10,7 @@ from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.policy import evaluate_tool_policy
 from mcpgen.runtime.rate_limit import check_rate_limit, record_rate_limit_hit
 from mcpgen.runtime.registry import ToolRegistry
+from mcpgen.runtime.validation import validate_tool_inputs
 
 
 try:
@@ -94,11 +95,15 @@ def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
     if not policy["allowed"]:
         return mcp_policy_result(policy)
 
+    clean_arguments = {key: value for key, value in arguments.items() if key != "auth"}
+    validation = validate_tool_inputs(tool_data, clean_arguments)
+    if not validation["valid"]:
+        return mcp_validation_result(validation)
+
     if runtime_config.get("execution_mode") == "safe-execute":
         auth_headers = mcp_auth_headers(arguments)
         if auth_headers.get("error"):
             return mcp_auth_error(auth_headers["error"])
-        clean_arguments = {key: value for key, value in arguments.items() if key != "auth"}
         result = execute_tool(
             name,
             clean_arguments,
@@ -116,8 +121,7 @@ def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
             "isError": result.get("status") == "error",
         }
 
-    preview_arguments = {key: value for key, value in arguments.items() if key != "auth"}
-    preview = build_dry_run_request(tool, preview_arguments, api_base_url)
+    preview = build_dry_run_request(tool, clean_arguments, api_base_url)
     record_metric(
         {
             "action": "dry_run",
@@ -188,6 +192,18 @@ def mcp_auth_error(message: str) -> dict:
                     },
                     indent=2,
                 ),
+            }
+        ],
+        "isError": True,
+    }
+
+
+def mcp_validation_result(validation: dict) -> dict:
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(validation, indent=2),
             }
         ],
         "isError": True,

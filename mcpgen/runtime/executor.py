@@ -7,6 +7,7 @@ import httpx
 from mcpgen.runtime.audit import build_audit_event, write_audit_event
 from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.policy import evaluate_tool_policy
+from mcpgen.runtime.validation import validate_tool_inputs
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
 SUPPORTED_AUTH_MODES = {"none", "bearer_passthrough", "api_key"}
@@ -72,6 +73,16 @@ def execute_tool(
             "status": "error",
             "status_code": None,
             "data": {"error": error},
+        }
+
+    validation = validate_tool_inputs(tool, params)
+    if not validation["valid"]:
+        write_execution_event(tool, policy, config, source, "execution_error", reason="Input validation failed.", latency_ms=0.0)
+        return {
+            "tool": tool_name,
+            "status": "error",
+            "status_code": None,
+            "data": validation,
         }
 
     url = build_execution_url(api_base_url, tool, params)

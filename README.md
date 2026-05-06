@@ -47,6 +47,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 - Runtime metrics for routing, policy decisions, dry-runs, execution outcomes, and latency
 - Upstream auth passthrough and API key injection without hardcoded secrets
 - Lightweight in-memory rate limiting
+- Runtime input validation for required fields, basic types, and enums
 - CLI commands: `generate`, `inspect`
 - Config via `mcpgen.yaml`
 
@@ -387,6 +388,40 @@ Policy decisions return:
 }
 ```
 
+## Request Validation
+
+v0.6.0 validates tool inputs before dry-run previews or safe GET execution. Validation uses the generated `input_schema` from OpenAPI parameters and JSON request bodies.
+
+MCPGen currently checks:
+
+- required fields
+- basic JSON Schema types: `string`, `integer`, `number`, `boolean`, `array`, `object`
+- enum values
+
+Example validation error:
+
+```json
+{
+  "valid": false,
+  "status": "validation_error",
+  "tool_name": "get_user_by_id",
+  "errors": [
+    {
+      "field": "id",
+      "reason": "required field is missing"
+    }
+  ]
+}
+```
+
+Validation runs in:
+
+- FastAPI dry-run: `POST /tools/{tool_name}/dry-run`
+- FastAPI safe execution: `POST /execute`
+- MCP `tools/call`
+
+This validation is intentionally MVP-level. It catches common input mistakes before network calls, but it is not a full JSON Schema validator yet.
+
 ## Audit Logging
 
 Audit logs are JSONL records written to:
@@ -684,6 +719,7 @@ api_base_url: https://jsonplaceholder.typicode.com
 
 - This is a production-oriented MVP, not a production-ready framework.
 - Auth support is limited to bearer passthrough and API key header injection.
+- Request validation is MVP-level and not full JSON Schema validation.
 - No OAuth2 flow yet.
 - No write execution.
 - No confirmation workflow UI.
@@ -701,6 +737,7 @@ api_base_url: https://jsonplaceholder.typicode.com
 - Confirmation workflow for enabled medium-risk tools
 - Rate limiting
 - Request/response validation
+- Full JSON Schema validation
 - Better OpenAPI schema support
 - Pluggable audit sinks
 - Better semantic routing models and embedding cache optimization

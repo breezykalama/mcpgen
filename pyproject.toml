@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [
-    { name = "breezykalama" },
+    { name = "Breezy Kalama" },
 ]
 dependencies = [
     "fastapi>=0.110.0",

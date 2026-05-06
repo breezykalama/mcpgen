@@ -74,7 +74,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.repository == 'testpypi'
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/mcpgen/
+      url: https://test.pypi.org/project/openapi-mcpgen/
     permissions:
       id-token: write
       contents: read
@@ -97,7 +97,7 @@ jobs:
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.repository == 'pypi')
     environment:
       name: pypi
-      url: https://pypi.org/project/mcpgen/
+      url: https://pypi.org/project/openapi-mcpgen/
     permissions:
       id-token: write
       contents: read

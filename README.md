@@ -78,7 +78,7 @@ pip install -e .[dev]
 Install from PyPI after publishing:
 
 ```bash
-pip install mcpgen
+pip install openapi-mcpgen
 ```
 
 Inspect a spec:
@@ -348,7 +348,7 @@ create_invoice create invoice for customer billing payments
 By default, MCPGen uses a deterministic local embedding fallback so demos and tests work without model downloads. To use the optional `sentence-transformers` backend, install the extra and set the backend:
 
 ```bash
-pip install "mcpgen[semantic]"
+pip install "openapi-mcpgen[semantic]"
 ```
 
 ```bash
@@ -358,7 +358,7 @@ export MCPGEN_EMBEDDING_BACKEND=sentence-transformers
 PowerShell:
 
 ```powershell
-pip install "mcpgen[semantic]"
+pip install "openapi-mcpgen[semantic]"
 $env:MCPGEN_EMBEDDING_BACKEND = "sentence-transformers"
 ```
 
@@ -727,11 +727,11 @@ Recommended flow:
 Install from TestPyPI:
 
 ```bash
-pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple mcpgen
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple openapi-mcpgen
 ```
 
 Install from PyPI:
 
 ```bash
-pip install mcpgen
+pip install openapi-mcpgen
 ```

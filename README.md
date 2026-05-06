@@ -48,6 +48,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 - Upstream auth passthrough and API key injection without hardcoded secrets
 - Lightweight in-memory rate limiting
 - Runtime input validation for required fields, basic types, and enums
+- `doctor` diagnostics for specs and config readiness
 - CLI commands: `generate`, `inspect`
 - Config via `mcpgen.yaml`
 
@@ -86,6 +87,12 @@ Inspect a spec:
 
 ```bash
 mcpgen inspect --from examples/jsonplaceholder.openapi.yaml
+```
+
+Run diagnostics:
+
+```bash
+mcpgen doctor --from examples/jsonplaceholder.openapi.yaml
 ```
 
 Generate a FastAPI server:
@@ -714,6 +721,40 @@ For the JSONPlaceholder demo, set:
 ```yaml
 api_base_url: https://jsonplaceholder.typicode.com
 ```
+
+## Doctor Diagnostics
+
+`mcpgen doctor` runs read-only checks against an OpenAPI spec and optional config file:
+
+```bash
+mcpgen doctor --from examples/jsonplaceholder.openapi.yaml --config mcpgen.yaml
+```
+
+It checks:
+
+- config loading and validation
+- OpenAPI parseability
+- execution mode
+- routing mode
+- API base URL readiness
+- auth mode
+- rate limit settings
+- metrics and audit settings
+- generated tool counts
+- exposed vs withheld tools
+- potential tool overload against `max_tools`
+
+Example output:
+
+```text
+MCPGen doctor: warn
+[PASS] config: Config loaded successfully.
+[PASS] openapi: Parsed 6 endpoint(s).
+[WARN] api_base_url: api_base_url is using the default placeholder.
+[PASS] safety: 4 low-risk tool(s) will be exposed.
+```
+
+`doctor` exits with code `1` if a failing check is found, which makes it useful in CI.
 
 ## Current Limitations
 

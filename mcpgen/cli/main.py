@@ -4,6 +4,7 @@ from typing import Optional
 import typer
 
 from mcpgen.core.config import load_config
+from mcpgen.core.doctor import run_doctor
 from mcpgen.core.generator import generate_project
 from mcpgen.core.inspector import inspect_spec
 
@@ -112,6 +113,39 @@ def inspect(
         typer.echo("Withheld tools:")
         for tool in result["withheld"]:
             typer.echo(f"- {tool['name']} ({tool['method']} {tool['path']}): {tool['reason']}")
+
+
+@app.command()
+def doctor(
+    from_: Path = typer.Option(
+        ...,
+        "--from",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to an OpenAPI YAML or JSON file.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to mcpgen.yaml config.",
+    ),
+) -> None:
+    """Run read-only diagnostics for an OpenAPI spec and MCPGen config."""
+    result = run_doctor(from_, config_path=config)
+
+    typer.echo(f"MCPGen doctor: {result['status']}")
+    for check in result["checks"]:
+        typer.echo(f"[{check['status'].upper()}] {check['name']}: {check['message']}")
+
+    if result["status"] == "fail":
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

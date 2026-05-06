@@ -53,3 +53,35 @@ def test_inspect_command_prints_summary() -> None:
     assert "Withheld tools: 3" in result.stdout
     assert "- high: 1" in result.stdout
     assert "delete_invoice" in result.stdout
+
+
+def test_doctor_command_prints_diagnostics() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["doctor", "--from", "examples/jsonplaceholder.openapi.yaml"])
+
+    assert result.exit_code == 0
+    assert "MCPGen doctor: warn" in result.stdout
+    assert "[PASS] openapi:" in result.stdout
+    assert "[WARN] api_base_url:" in result.stdout
+
+
+def test_doctor_command_exits_nonzero_on_failure(tmp_path) -> None:
+    config_path = tmp_path / "mcpgen.yaml"
+    config_path.write_text(
+        """
+        rate_limit:
+          enabled: true
+          per_tool: 0
+        """,
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["doctor", "--from", "examples/jsonplaceholder.openapi.yaml", "--config", str(config_path)],
+    )
+
+    assert result.exit_code == 1
+    assert "[FAIL] rate_limit:" in result.stdout

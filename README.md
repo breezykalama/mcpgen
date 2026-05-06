@@ -75,6 +75,12 @@ Install locally:
 pip install -e .[dev]
 ```
 
+Install from PyPI after publishing:
+
+```bash
+pip install mcpgen
+```
+
 Inspect a spec:
 
 ```bash
@@ -339,7 +345,11 @@ Tool text combines the tool name, description, and optional tags. Example:
 create_invoice create invoice for customer billing payments
 ```
 
-By default, MCPGen uses a deterministic local embedding fallback so demos and tests work without model downloads. To use `sentence-transformers`, set:
+By default, MCPGen uses a deterministic local embedding fallback so demos and tests work without model downloads. To use the optional `sentence-transformers` backend, install the extra and set the backend:
+
+```bash
+pip install "mcpgen[semantic]"
+```
 
 ```bash
 export MCPGEN_EMBEDDING_BACKEND=sentence-transformers
@@ -348,6 +358,7 @@ export MCPGEN_EMBEDDING_BACKEND=sentence-transformers
 PowerShell:
 
 ```powershell
+pip install "mcpgen[semantic]"
 $env:MCPGEN_EMBEDDING_BACKEND = "sentence-transformers"
 ```
 
@@ -694,3 +705,33 @@ api_base_url: https://jsonplaceholder.typicode.com
 - Pluggable audit sinks
 - Better semantic routing models and embedding cache optimization
 - Deployment templates
+
+## Publishing
+
+MCPGen publishes through GitHub Actions using PyPI Trusted Publishing. No PyPI API token should be committed to the repository.
+
+Workflow:
+
+```text
+.github/workflows/publish.yml
+```
+
+Recommended flow:
+
+1. Configure Trusted Publishing on TestPyPI for this repository and the `Publish Python Package` workflow.
+2. Run the workflow manually with `repository = testpypi`.
+3. Install and verify from TestPyPI.
+4. Configure Trusted Publishing on PyPI.
+5. Publish a GitHub Release or run the workflow manually with `repository = pypi`.
+
+Install from TestPyPI:
+
+```bash
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple mcpgen
+```
+
+Install from PyPI:
+
+```bash
+pip install mcpgen
+```

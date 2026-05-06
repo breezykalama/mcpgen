@@ -1,0 +1,56 @@
+from mcpgen.runtime.mock import build_mock_response
+
+
+def list_users_tool() -> dict:
+    return {
+        "name": "list_users",
+        "method": "GET",
+        "path": "/users",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "active": {"type": "boolean"},
+            },
+        },
+    }
+
+
+def get_user_tool() -> dict:
+    return {
+        "name": "get_user_by_id",
+        "method": "GET",
+        "path": "/users/{id}",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "x-mcpgen-location": "path"},
+                "include": {"type": "string", "enum": ["profile", "posts"]},
+            },
+            "required": ["id"],
+        },
+    }
+
+
+def test_mock_list_tool_returns_array() -> None:
+    result = build_mock_response(
+        list_users_tool(),
+        {},
+        {"mock": {"enabled": True, "seed": 123, "list_size": 2}},
+    )
+
+    assert result["status"] == "success"
+    assert result["mocked"] is True
+    assert len(result["data"]) == 2
+    assert result["data"][0]["mock"] is True
+
+
+def test_mock_get_by_id_returns_object_using_params() -> None:
+    result = build_mock_response(
+        get_user_tool(),
+        {"id": 42},
+        {"mock": {"enabled": True, "seed": 123, "list_size": 2}},
+    )
+
+    assert result["data"]["id"] == 42
+    assert result["data"]["include"] == "profile"
+    assert result["data"]["mock"] is True

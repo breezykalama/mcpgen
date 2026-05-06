@@ -20,6 +20,18 @@ class RateLimitConfig(BaseModel):
     window_seconds: int = 60
 
 
+class MockConfig(BaseModel):
+    enabled: bool = False
+    mode: str = "schema"
+    seed: int = 123
+    list_size: int = 3
+
+
+class FailureInjectionConfig(BaseModel):
+    enabled: bool = False
+    scenarios: dict[str, str] = Field(default_factory=dict)
+
+
 class MCPGenConfig(BaseModel):
     """Small, safe-by-default generation config."""
 
@@ -36,6 +48,8 @@ class MCPGenConfig(BaseModel):
     metrics_path: str = "logs/metrics.json"
     auth: AuthConfig = Field(default_factory=AuthConfig)
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
+    mock: MockConfig = Field(default_factory=MockConfig)
+    failure_injection: FailureInjectionConfig = Field(default_factory=FailureInjectionConfig)
 
     def normalized_allowed_methods(self) -> set[str]:
         return {method.upper() for method in self.allowed_methods}
@@ -74,4 +88,6 @@ def dump_runtime_config(config: MCPGenConfig, mode: str = "fastapi") -> dict[str
         "metrics_path": config.metrics_path,
         "auth": config.auth.model_dump(),
         "rate_limit": config.rate_limit.model_dump(by_alias=True),
+        "mock": config.mock.model_dump(),
+        "failure_injection": config.failure_injection.model_dump(),
     }

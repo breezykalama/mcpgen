@@ -133,6 +133,76 @@ def test_missing_api_base_url_error(monkeypatch, tmp_path: Path) -> None:
     assert result["data"]["error"] == "Missing api_base_url config or API_BASE_URL environment variable."
 
 
+def test_mock_execution_returns_mock_without_http(monkeypatch, tmp_path: Path) -> None:
+    called = False
+
+    def fake_get(url, headers, timeout):
+        nonlocal called
+        called = True
+        return httpx.Response(200, json={"ok": True}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr("mcpgen.runtime.executor.httpx.get", fake_get)
+    config = {
+        **make_config(tmp_path, [get_user_tool()]),
+        "mock": {"enabled": True, "seed": 123, "list_size": 2},
+    }
+
+    result = execute_tool("get_user_by_id", {"id": 1}, config)
+
+    assert called is False
+    assert result["status"] == "success"
+    assert result["status_code"] == 200
+    assert result["mocked"] is True
+    assert result["data"]["id"] == 1
+
+
+def test_failure_injection_returns_error_without_http(monkeypatch, tmp_path: Path) -> None:
+    called = False
+
+    def fake_get(url, headers, timeout):
+        nonlocal called
+        called = True
+        return httpx.Response(200, json={"ok": True}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr("mcpgen.runtime.executor.httpx.get", fake_get)
+    config = {
+        **make_config(tmp_path, [get_user_tool()]),
+        "failure_injection": {
+            "enabled": True,
+            "scenarios": {"get_user_by_id": "not_found"},
+        },
+    }
+
+    result = execute_tool("get_user_by_id", {"id": 1}, config)
+
+    assert called is False
+    assert result["status"] == "error"
+    assert result["status_code"] == 404
+    assert result["simulated"] is True
+    assert result["data"]["error"] == "Simulated not found."
+
+
+def test_failure_injection_takes_precedence_over_mock(monkeypatch, tmp_path: Path) -> None:
+    def fake_get(url, headers, timeout):
+        return httpx.Response(200, json={"ok": True}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr("mcpgen.runtime.executor.httpx.get", fake_get)
+    config = {
+        **make_config(tmp_path, [get_user_tool()]),
+        "mock": {"enabled": True},
+        "failure_injection": {
+            "enabled": True,
+            "scenarios": {"get_user_by_id": "timeout"},
+        },
+    }
+
+    result = execute_tool("get_user_by_id", {"id": 1}, config)
+
+    assert result["status"] == "error"
+    assert result["simulated"] is True
+    assert "timeout" in result["data"]["error"]
+
+
 def test_medium_risk_blocked(tmp_path: Path) -> None:
     tool = {
         "name": "create_invoice",

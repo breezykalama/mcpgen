@@ -60,6 +60,16 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
         "global": 100,
         "window_seconds": 60,
     }
+    assert runtime_config["mock"] == {
+        "enabled": False,
+        "mode": "schema",
+        "seed": 123,
+        "list_size": 3,
+    }
+    assert runtime_config["failure_injection"] == {
+        "enabled": False,
+        "scenarios": {},
+    }
     assert len(embeddings) == 5
     assert embeddings[0]["tool_name"] == "list_customers"
     assert env_example == "API_BASE_URL=https://api.example.com\n"
@@ -68,6 +78,8 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     assert "  mode: none" in generated_config
     assert "rate_limit:" in generated_config
     assert "  enabled: False" in generated_config
+    assert "mock:" in generated_config
+    assert "failure_injection:" in generated_config
 
 
 def test_generate_project_honors_max_tools_config(tmp_path: Path) -> None:

@@ -24,6 +24,12 @@ def test_default_config_is_safe() -> None:
     assert config.rate_limit.per_tool == 10
     assert config.rate_limit.global_ == 100
     assert config.rate_limit.window_seconds == 60
+    assert config.mock.enabled is False
+    assert config.mock.mode == "schema"
+    assert config.mock.seed == 123
+    assert config.mock.list_size == 3
+    assert config.failure_injection.enabled is False
+    assert config.failure_injection.scenarios == {}
 
 
 def test_load_config_from_yaml(tmp_path: Path) -> None:
@@ -52,6 +58,15 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
           per_tool: 2
           global: 5
           window_seconds: 30
+        mock:
+          enabled: true
+          mode: schema
+          seed: 99
+          list_size: 2
+        failure_injection:
+          enabled: true
+          scenarios:
+            list_invoices: timeout
         """,
         encoding="utf-8",
     )
@@ -76,3 +91,8 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     assert config.rate_limit.per_tool == 2
     assert config.rate_limit.global_ == 5
     assert config.rate_limit.window_seconds == 30
+    assert config.mock.enabled is True
+    assert config.mock.seed == 99
+    assert config.mock.list_size == 2
+    assert config.failure_injection.enabled is True
+    assert config.failure_injection.scenarios == {"list_invoices": "timeout"}

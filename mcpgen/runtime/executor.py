@@ -5,7 +5,9 @@ from urllib.parse import urlencode
 import httpx
 
 from mcpgen.runtime.audit import build_audit_event, write_audit_event
+from mcpgen.runtime.failure import build_failure_response, get_failure_scenario
 from mcpgen.runtime.metrics import record_metric
+from mcpgen.runtime.mock import build_mock_response, should_use_mock
 from mcpgen.runtime.policy import evaluate_tool_policy
 from mcpgen.runtime.validation import validate_tool_inputs
 
@@ -84,6 +86,27 @@ def execute_tool(
             "status_code": None,
             "data": validation,
         }
+
+    failure_scenario = get_failure_scenario(tool_name, config)
+    if failure_scenario is not None:
+        write_execution_event(tool, policy, config, source, "execution_started")
+        result = build_failure_response(tool_name, failure_scenario)
+        write_execution_event(
+            tool,
+            policy,
+            config,
+            source,
+            "execution_error",
+            reason=f"Simulated failure: {failure_scenario}.",
+            latency_ms=0.0,
+        )
+        return result
+
+    if should_use_mock(config):
+        write_execution_event(tool, policy, config, source, "execution_started")
+        result = build_mock_response(tool, params, config)
+        write_execution_event(tool, policy, config, source, "execution_success", latency_ms=0.0)
+        return result
 
     url = build_execution_url(api_base_url, tool, params)
     try:

@@ -49,6 +49,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 - Lightweight in-memory rate limiting
 - Runtime input validation for required fields, basic types, and enums
 - `doctor` diagnostics for specs and config readiness
+- Mock execution and failure injection for offline development
 - CLI commands: `generate`, `inspect`
 - Config via `mcpgen.yaml`
 
@@ -429,6 +430,77 @@ Validation runs in:
 
 This validation is intentionally MVP-level. It catches common input mistakes before network calls, but it is not a full JSON Schema validator yet.
 
+## Mock Runtime
+
+v0.7.0 adds mock execution so developers can test generated servers without a live API, database, credentials, or internet access.
+
+Config:
+
+```yaml
+mock:
+  enabled: true
+  mode: schema
+  seed: 123
+  list_size: 3
+```
+
+When mock mode is enabled, safe `GET` execution returns deterministic mock data instead of calling the upstream API. Policy, validation, rate limiting, audit logging, and metrics still apply.
+
+Example mock response:
+
+```json
+{
+  "tool": "get_user_by_id",
+  "status": "success",
+  "status_code": 200,
+  "data": {
+    "id": 1,
+    "name": "Users 1",
+    "mock": true
+  },
+  "mocked": true
+}
+```
+
+List-style tools return arrays using `mock.list_size`.
+
+## Failure Injection
+
+Failure injection lets developers simulate common upstream failures and observe how their server, agent, or LLM workflow responds.
+
+Config:
+
+```yaml
+failure_injection:
+  enabled: true
+  scenarios:
+    get_user_by_id: not_found
+    list_posts: timeout
+```
+
+Supported MVP scenarios:
+
+- `timeout`
+- `not_found`
+- `server_error`
+- `malformed_json`
+
+Example simulated response:
+
+```json
+{
+  "tool": "get_user_by_id",
+  "status": "error",
+  "status_code": 404,
+  "data": {
+    "error": "Simulated not found."
+  },
+  "simulated": true
+}
+```
+
+Failure injection takes precedence over mock mode when both are enabled for the same tool.
+
 ## Audit Logging
 
 Audit logs are JSONL records written to:
@@ -556,6 +628,14 @@ rate_limit:
   per_tool: 10
   global: 100
   window_seconds: 60
+mock:
+  enabled: false
+  mode: schema
+  seed: 123
+  list_size: 3
+failure_injection:
+  enabled: false
+  scenarios: {}
 ```
 
 FastAPI mode applies the global limit to operational requests:
@@ -761,6 +841,8 @@ MCPGen doctor: warn
 - This is a production-oriented MVP, not a production-ready framework.
 - Auth support is limited to bearer passthrough and API key header injection.
 - Request validation is MVP-level and not full JSON Schema validation.
+- Mock responses are simple deterministic fixtures, not full response-schema generation.
+- Failure injection is configured per tool and supports only common MVP scenarios.
 - No OAuth2 flow yet.
 - No write execution.
 - No confirmation workflow UI.
@@ -779,6 +861,8 @@ MCPGen doctor: warn
 - Rate limiting
 - Request/response validation
 - Full JSON Schema validation
+- Response-schema-aware mock generation
+- Failure scenario probabilities and per-request overrides
 - Better OpenAPI schema support
 - Pluggable audit sinks
 - Better semantic routing models and embedding cache optimization

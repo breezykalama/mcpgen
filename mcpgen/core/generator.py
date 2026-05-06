@@ -76,6 +76,8 @@ def write_generated_config(config: MCPGenConfig, mode: str, path: Path) -> None:
         "metrics_path": config.metrics_path,
         "auth": config.auth.model_dump(),
         "rate_limit": config.rate_limit.model_dump(by_alias=True),
+        "mock": config.mock.model_dump(),
+        "failure_injection": config.failure_injection.model_dump(),
     }
     path.write_text(json_to_yaml_like(data), encoding="utf-8")
 

@@ -33,9 +33,9 @@ MCPGen `1.0.0` is a stable production-oriented MVP. The current config keys, CLI
 
 Stable in this MVP:
 
-- `mcpgen generate`, `mcpgen inspect`, and `mcpgen doctor`
+- `mcpgen init`, `mcpgen generate`, `mcpgen inspect`, and `mcpgen doctor`
 - FastAPI and MCP stdio generation modes
-- generated `tools.json`, `tools.all.json`, `tools.embeddings.json`, `safety_report.json`, and `mcpgen.runtime.json`
+- generated `tools.json`, `tools.all.json`, `tools.embeddings.json`, `safety_report.json`, `tool_catalog.md`, and `mcpgen.runtime.json`
 - safe GET execution only
 - policy, audit, metrics, auth passthrough/API key injection, rate limiting, validation, mocks, failure injection, tool selection, and local schema refs
 
@@ -50,6 +50,7 @@ Still experimental:
 ## Features
 
 - OpenAPI YAML/JSON parsing
+- Starter project scaffolding with `mcpgen init`
 - Tool generation from endpoints
 - Developer-controlled tool selection by name, path, and method
 - Risk classification:
@@ -73,7 +74,8 @@ Still experimental:
 - Runtime input validation for required fields, basic types, and enums
 - `doctor` diagnostics for specs and config readiness
 - Mock execution and failure injection for offline development
-- CLI commands: `generate`, `inspect`, `doctor`
+- Human-readable generated tool catalog
+- CLI commands: `init`, `generate`, `inspect`, `doctor`
 - Config via `mcpgen.yaml`
 - MIT licensed
 
@@ -87,7 +89,7 @@ OpenAPI spec
   -> risk classifier
   -> local schema/ref resolver
   -> safety filter
-  -> tools.json / tools.all.json / tools.embeddings.json / safety_report.json
+  -> tools.json / tools.all.json / tools.embeddings.json / safety_report.json / tool_catalog.md
   -> generated FastAPI or MCP server
   -> policy engine
   -> semantic/keyword router
@@ -116,22 +118,35 @@ Optional semantic routing dependency:
 pip install "openapi-mcpgen[semantic]"
 ```
 
+Create a starter project:
+
+```bash
+mcpgen init --directory demo_mcpgen
+cd demo_mcpgen
+```
+
+For offline development with mock execution enabled:
+
+```bash
+mcpgen init --directory demo_mcpgen --profile mock
+```
+
 Inspect a spec:
 
 ```bash
-mcpgen inspect --from examples/jsonplaceholder.openapi.yaml
+mcpgen inspect --from openapi.yaml --config mcpgen.yaml
 ```
 
 Run diagnostics:
 
 ```bash
-mcpgen doctor --from examples/jsonplaceholder.openapi.yaml
+mcpgen doctor --from openapi.yaml --config mcpgen.yaml
 ```
 
 Generate a FastAPI server:
 
 ```bash
-mcpgen generate --from examples/jsonplaceholder.openapi.yaml --mode fastapi --output generated_jsonplaceholder
+mcpgen generate --from openapi.yaml --config mcpgen.yaml --mode fastapi --output generated_jsonplaceholder
 ```
 
 Run it:
@@ -221,6 +236,40 @@ Generated safe tool:
 ```
 
 Withheld tools such as `create_post` and `delete_post` remain in `tools.all.json` and are explained in `safety_report.json`.
+
+## Tool Catalog
+
+Every generated server includes `tool_catalog.md`, a human-readable review file for developers and security reviewers.
+
+It summarizes:
+
+- total selected tools
+- exposed safe tools
+- withheld tools
+- method, path, risk, and exposure status for each tool
+- generated input fields
+- response fields when response schemas are available
+
+Example:
+
+```markdown
+## get_user_by_id
+
+- Method: `GET`
+- Path: `/users/{id}`
+- Risk: `low`
+- Exposed: `yes`
+
+### Inputs
+
+- `id`: integer, required
+
+### Response
+
+- `id`: integer
+- `name`: string
+- `email`: string
+```
 
 ## FastAPI Demo Commands
 

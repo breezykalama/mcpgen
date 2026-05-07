@@ -2,6 +2,14 @@
 
 All notable MCPGen changes are documented here.
 
+## 1.1.0 - 2026-05-07
+
+### Added
+
+- Added `mcpgen init` to scaffold starter `mcpgen.yaml`, `.env.example`, and `openapi.yaml` files.
+- Added safe and mock starter profiles for onboarding.
+- Generated `tool_catalog.md` for human-readable tool review.
+
 ## 1.0.0 - 2026-05-07
 
 ### Added

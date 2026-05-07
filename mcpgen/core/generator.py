@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 from typing import Literal
 
+from mcpgen.core.catalog import write_tool_catalog
 from mcpgen.core.config import MCPGenConfig, dump_runtime_config
 from mcpgen.core.models import GenerationResult, Tool
 from mcpgen.core.parser import parse_openapi
@@ -36,6 +37,7 @@ def generate_project(
     write_tools_json(all_tools, output_dir / "tools.all.json")
     write_json(generate_tool_embeddings(all_tools), output_dir / "tools.embeddings.json")
     write_json(safety_report, output_dir / "safety_report.json")
+    write_tool_catalog(all_tools, tools, output_dir / "tool_catalog.md")
     write_json(dump_runtime_config(config, mode=mode), output_dir / "mcpgen.runtime.json")
     write_env_example(config, output_dir / ".env.example")
     write_generated_config(config, mode, output_dir / "mcpgen.generated.yaml")

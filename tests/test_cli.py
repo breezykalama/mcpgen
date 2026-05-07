@@ -13,6 +13,30 @@ def test_generate_command_defaults_to_fastapi(tmp_path) -> None:
     assert "Mode: fastapi" in result.stdout
     assert "Run: uvicorn server:app --reload" in result.stdout
     assert (output_dir / "server.py").exists()
+    assert (output_dir / "tool_catalog.md").exists()
+
+
+def test_init_command_writes_starter_files(tmp_path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["init", "--directory", str(tmp_path), "--profile", "mock"])
+
+    assert result.exit_code == 0
+    assert "Initialized MCPGen project" in result.stdout
+    assert (tmp_path / "mcpgen.yaml").exists()
+    assert (tmp_path / ".env.example").exists()
+    assert (tmp_path / "openapi.yaml").exists()
+    assert "mock:\n  enabled: true" in (tmp_path / "mcpgen.yaml").read_text(encoding="utf-8")
+
+
+def test_init_command_refuses_existing_files_without_force(tmp_path) -> None:
+    runner = CliRunner()
+    runner.invoke(app, ["init", "--directory", str(tmp_path)])
+
+    result = runner.invoke(app, ["init", "--directory", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "Use --force" in result.stdout
 
 
 def test_generate_command_supports_fastapi_mode(tmp_path) -> None:

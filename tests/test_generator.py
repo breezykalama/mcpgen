@@ -20,6 +20,7 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     embeddings = json.loads((output_dir / "tools.embeddings.json").read_text(encoding="utf-8"))
     env_example = (output_dir / ".env.example").read_text(encoding="utf-8")
     generated_config = (output_dir / "mcpgen.generated.yaml").read_text(encoding="utf-8")
+    tool_catalog = (output_dir / "tool_catalog.md").read_text(encoding="utf-8")
 
     assert len(result.tools) == 2
     assert result.mode == "fastapi"
@@ -78,6 +79,10 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     }
     assert len(embeddings) == 5
     assert embeddings[0]["tool_name"] == "list_customers"
+    assert "## list_customers" in tool_catalog
+    assert "## create_invoice" in tool_catalog
+    assert "- Exposed: `yes`" in tool_catalog
+    assert "- Exposed: `no`" in tool_catalog
     assert env_example == "API_BASE_URL=https://api.example.com\n"
     assert "mode: fastapi" in generated_config
     assert "include_tools:" in generated_config

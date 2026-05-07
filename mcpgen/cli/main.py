@@ -6,6 +6,7 @@ import typer
 from mcpgen.core.config import load_config
 from mcpgen.core.doctor import run_doctor
 from mcpgen.core.generator import generate_project
+from mcpgen.core.init_project import init_project
 from mcpgen.core.inspector import inspect_spec
 
 app = typer.Typer(help="Generate safe-by-default MCP-style servers from OpenAPI specs.")
@@ -14,6 +15,44 @@ app = typer.Typer(help="Generate safe-by-default MCP-style servers from OpenAPI 
 @app.callback()
 def main() -> None:
     """MCPGen command line interface."""
+
+
+@app.command()
+def init(
+    directory: Path = typer.Option(
+        Path("."),
+        "--directory",
+        "-d",
+        help="Directory where starter files should be written.",
+    ),
+    profile: str = typer.Option(
+        "safe",
+        "--profile",
+        case_sensitive=False,
+        help="Starter profile: safe or mock.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite existing starter files.",
+    ),
+) -> None:
+    """Create starter MCPGen config, env, and OpenAPI files."""
+    try:
+        written = init_project(directory, profile=profile, force=force)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except FileExistsError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"Initialized MCPGen project in {directory.resolve()}")
+    for path in written:
+        typer.echo(f"- {path}")
+    typer.echo("")
+    typer.echo("Next:")
+    typer.echo(f"mcpgen doctor --from {directory / 'openapi.yaml'} --config {directory / 'mcpgen.yaml'}")
+    typer.echo(f"mcpgen generate --from {directory / 'openapi.yaml'} --config {directory / 'mcpgen.yaml'}")
 
 
 @app.command()
@@ -65,7 +104,7 @@ def generate(
     typer.echo(f"Output directory: {result.output_dir}")
     typer.echo(
         "Wrote tools.json, tools.all.json, tools.embeddings.json, "
-        "safety_report.json, mcpgen.runtime.json, and mcpgen.generated.yaml."
+        "safety_report.json, tool_catalog.md, mcpgen.runtime.json, and mcpgen.generated.yaml."
     )
     if mode == "fastapi":
         typer.echo("Run: uvicorn server:app --reload")

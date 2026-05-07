@@ -8,6 +8,7 @@ from mcpgen.core.doctor import run_doctor
 from mcpgen.core.generator import generate_project
 from mcpgen.core.init_project import init_project
 from mcpgen.core.inspector import inspect_spec
+from mcpgen.core.routing_eval import evaluate_routing
 
 app = typer.Typer(help="Generate safe-by-default MCP-style servers from OpenAPI specs.")
 
@@ -160,6 +161,63 @@ def inspect(
         typer.echo("Excluded by selection:")
         for tool in result["excluded"]:
             typer.echo(f"- {tool['name']} ({tool['method']} {tool['path']}): {tool['reason']}")
+
+
+@app.command()
+def eval_routing(
+    from_: Path = typer.Option(
+        ...,
+        "--from",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to an OpenAPI YAML or JSON file.",
+    ),
+    cases: Path = typer.Option(
+        ...,
+        "--cases",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to routing eval YAML cases.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to mcpgen.yaml config.",
+    ),
+    top_k: Optional[int] = typer.Option(
+        None,
+        "--top-k",
+        min=1,
+        help="Number of routed tools to evaluate per query. Defaults to max_tools.",
+    ),
+) -> None:
+    """Evaluate routing quality against expected tool names."""
+    loaded_config = load_config(config)
+    result = evaluate_routing(from_, cases, config=loaded_config, top_k=top_k)
+
+    typer.echo(f"Routing eval: {result['passed']}/{result['total']} passed")
+    typer.echo(f"Accuracy: {result['accuracy']:.0%}")
+    typer.echo(f"Routing mode: {result['routing_mode']}")
+    typer.echo(f"Top K: {result['top_k']}")
+
+    for case_result in result["results"]:
+        status = "PASS" if case_result["passed"] else "FAIL"
+        typer.echo("")
+        typer.echo(f"[{status}] {case_result['query']}")
+        typer.echo(f"Expected: {', '.join(case_result['expected'])}")
+        typer.echo(f"Returned: {', '.join(case_result['returned']) or '(none)'}")
+
+    if result["status"] == "fail":
+        raise typer.Exit(code=1)
 
 
 @app.command()

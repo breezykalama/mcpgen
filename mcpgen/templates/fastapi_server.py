@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from mcpgen.core.models import model_to_dict
 from mcpgen.runtime.registry import ToolRegistry
 from mcpgen.runtime.audit import build_audit_event, write_audit_event
 from mcpgen.runtime.dry_run import build_dry_run_request
@@ -48,7 +49,7 @@ if not metrics_path.is_absolute():
     metrics_config["metrics_path"] = str(BASE_DIR / metrics_path)
 policy_config = {**metrics_config, "source": "fastapi"}
 execution_config = dict(metrics_config)
-execution_config["tools"] = [tool.model_dump(mode="json") for tool in all_registry.list_tools()]
+execution_config["tools"] = [model_to_dict(tool, mode="json") for tool in all_registry.list_tools()]
 
 
 @app.get("/")
@@ -87,7 +88,7 @@ def list_relevant_tools(request: ToolQuery):
     return {
         "tools": [
             {
-                "tool": item["tool"].model_dump(mode="json"),
+                "tool": model_to_dict(item["tool"], mode="json"),
                 "score": item["score"],
                 "matched_terms": item["matched_terms"],
                 "routing_mode": item.get("routing_mode", runtime_config.get("routing_mode", "semantic")),
@@ -99,7 +100,7 @@ def list_relevant_tools(request: ToolQuery):
 
 @app.get("/tools")
 def list_tools():
-    return {"tools": [tool.model_dump(mode="json") for tool in registry.list_tools()]}
+    return {"tools": [model_to_dict(tool, mode="json") for tool in registry.list_tools()]}
 
 
 @app.post("/tools/{tool_name}/dry-run")
@@ -123,7 +124,7 @@ def dry_run_tool(tool_name: str, request: DryRunRequest):
         )
         return policy
 
-    tool_data = tool.model_dump(mode="json")
+    tool_data = model_to_dict(tool, mode="json")
     policy = evaluate_tool_policy(
         tool_data,
         policy_config,
@@ -213,7 +214,7 @@ def enforce_rate_limit(tool_name: str | None):
         return None
 
     tool = all_registry.get_tool(tool_name) if tool_name is not None else None
-    tool_data = tool.model_dump(mode="json") if tool is not None else {
+    tool_data = model_to_dict(tool, mode="json") if tool is not None else {
         "name": tool_name or "global",
         "method": "unknown",
         "path": "unknown",

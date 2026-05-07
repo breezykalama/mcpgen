@@ -14,6 +14,7 @@ def init_project(directory: Path, profile: str = "safe", force: bool = False) ->
         directory / "mcpgen.yaml": starter_config(profile),
         directory / ".env.example": "API_BASE_URL=https://jsonplaceholder.typicode.com\n",
         directory / "openapi.yaml": starter_openapi_spec(),
+        directory / "routing_eval.yaml": starter_routing_eval(),
     }
 
     directory.mkdir(parents=True, exist_ok=True)
@@ -121,4 +122,14 @@ components:
           type: string
         email:
           type: string
+"""
+
+
+def starter_routing_eval() -> str:
+    return """- query: list all users
+  expected:
+    - list_users
+- query: get user by id
+  expected:
+    - get_user_by_id
 """

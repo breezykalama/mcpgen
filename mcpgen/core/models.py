@@ -41,3 +41,13 @@ class GenerationResult(BaseModel):
     mode: str = "fastapi"
     all_tools: list[Tool] = Field(default_factory=list)
     safety_report: dict[str, Any] = Field(default_factory=dict)
+
+
+def model_to_dict(model: BaseModel, **kwargs: Any) -> dict[str, Any]:
+    """Serialize Pydantic models without depending on static analyzer support for model_dump."""
+    model_dump = getattr(model, "model_dump", None)
+    if callable(model_dump):
+        return model_dump(**kwargs)
+
+    dict_kwargs = {key: value for key, value in kwargs.items() if key != "mode"}
+    return model.dict(**dict_kwargs)

@@ -4,6 +4,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from mcpgen.core.models import model_to_dict
+
 
 class AuthConfig(BaseModel):
     mode: str = "none"
@@ -104,8 +106,8 @@ def dump_runtime_config(config: MCPGenConfig, mode: str = "fastapi") -> dict[str
         "routing_mode": config.routing_mode,
         "metrics_enabled": config.metrics_enabled,
         "metrics_path": config.metrics_path,
-        "auth": config.auth.model_dump(),
-        "rate_limit": config.rate_limit.model_dump(by_alias=True),
-        "mock": config.mock.model_dump(),
-        "failure_injection": config.failure_injection.model_dump(),
+        "auth": model_to_dict(config.auth),
+        "rate_limit": model_to_dict(config.rate_limit, by_alias=True),
+        "mock": model_to_dict(config.mock),
+        "failure_injection": model_to_dict(config.failure_injection),
     }

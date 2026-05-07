@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 
+from mcpgen.core.models import model_to_dict
 from mcpgen.runtime.audit import build_audit_event, write_audit_event
 from mcpgen.runtime.dry_run import build_dry_run_request
 from mcpgen.runtime.executor import execute_tool
@@ -37,7 +38,7 @@ if not metrics_path.is_absolute():
     metrics_config["metrics_path"] = str(BASE_DIR / metrics_path)
 policy_config = {**metrics_config, "source": "mcp"}
 execution_config = dict(metrics_config)
-execution_config["tools"] = [tool.model_dump(mode="json") for tool in all_registry.list_tools()]
+execution_config["tools"] = [model_to_dict(tool, mode="json") for tool in all_registry.list_tools()]
 
 
 def list_mcp_tools() -> list[dict]:
@@ -77,7 +78,7 @@ def call_mcp_tool(name: str, arguments: dict | None = None) -> dict:
         )
         return mcp_policy_result(policy)
 
-    tool_data = tool.model_dump(mode="json")
+    tool_data = model_to_dict(tool, mode="json")
     policy = evaluate_tool_policy(
         tool_data,
         policy_config,

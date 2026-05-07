@@ -26,6 +26,7 @@ def test_init_command_writes_starter_files(tmp_path) -> None:
     assert (tmp_path / "mcpgen.yaml").exists()
     assert (tmp_path / ".env.example").exists()
     assert (tmp_path / "openapi.yaml").exists()
+    assert (tmp_path / "routing_eval.yaml").exists()
     assert "mock:\n  enabled: true" in (tmp_path / "mcpgen.yaml").read_text(encoding="utf-8")
 
 
@@ -79,6 +80,66 @@ def test_inspect_command_prints_summary() -> None:
     assert "Withheld tools: 3" in result.stdout
     assert "- high: 1" in result.stdout
     assert "delete_invoice" in result.stdout
+
+
+def test_eval_routing_command_prints_summary(tmp_path) -> None:
+    cases_path = tmp_path / "routing_eval.yaml"
+    cases_path.write_text(
+        """
+        - query: list invoices
+          expected:
+            - list_invoices
+        """,
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "eval-routing",
+            "--from",
+            "examples/openapi.yaml",
+            "--cases",
+            str(cases_path),
+            "--top-k",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Routing eval: 1/1 passed" in result.stdout
+    assert "[PASS] list invoices" in result.stdout
+
+
+def test_eval_routing_command_exits_nonzero_on_failure(tmp_path) -> None:
+    cases_path = tmp_path / "routing_eval.yaml"
+    cases_path.write_text(
+        """
+        - query: list invoices
+          expected:
+            - list_customers
+        """,
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "eval-routing",
+            "--from",
+            "examples/openapi.yaml",
+            "--cases",
+            str(cases_path),
+            "--top-k",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Routing eval: 0/1 passed" in result.stdout
+    assert "[FAIL] list invoices" in result.stdout
 
 
 def test_doctor_command_prints_diagnostics() -> None:

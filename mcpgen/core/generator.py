@@ -5,7 +5,7 @@ from typing import Literal
 
 from mcpgen.core.catalog import write_tool_catalog
 from mcpgen.core.config import MCPGenConfig, dump_runtime_config
-from mcpgen.core.models import GenerationResult, Tool
+from mcpgen.core.models import GenerationResult, Tool, model_to_dict
 from mcpgen.core.parser import parse_openapi
 from mcpgen.core.tool_selection import apply_tool_selection
 from mcpgen.core.tool_generator import generate_tools
@@ -53,7 +53,7 @@ def generate_project(
 
 
 def write_tools_json(tools: list[Tool], path: Path) -> None:
-    data = [tool.model_dump(mode="json") for tool in tools]
+    data = [model_to_dict(tool, mode="json") for tool in tools]
     write_json(data, path)
 
 
@@ -85,10 +85,10 @@ def write_generated_config(config: MCPGenConfig, mode: str, path: Path) -> None:
         "routing_mode": config.routing_mode,
         "metrics_enabled": config.metrics_enabled,
         "metrics_path": config.metrics_path,
-        "auth": config.auth.model_dump(),
-        "rate_limit": config.rate_limit.model_dump(by_alias=True),
-        "mock": config.mock.model_dump(),
-        "failure_injection": config.failure_injection.model_dump(),
+        "auth": model_to_dict(config.auth),
+        "rate_limit": model_to_dict(config.rate_limit, by_alias=True),
+        "mock": model_to_dict(config.mock),
+        "failure_injection": model_to_dict(config.failure_injection),
     }
     path.write_text(json_to_yaml_like(data), encoding="utf-8")
 

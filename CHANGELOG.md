@@ -2,6 +2,15 @@
 
 All notable MCPGen changes are documented here.
 
+## 1.2.0 - 2026-05-07
+
+### Added
+
+- Added `mcpgen eval-routing` for measuring query-to-tool routing quality.
+- Added YAML routing eval cases with expected tool names.
+- Added starter `routing_eval.yaml` from `mcpgen init`.
+- Added CI-friendly nonzero exit code when routing eval cases fail.
+
 ## 1.1.0 - 2026-05-07
 
 ### Added

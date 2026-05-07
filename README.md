@@ -33,11 +33,12 @@ MCPGen `1.0.0` is a stable production-oriented MVP. The current config keys, CLI
 
 Stable in this MVP:
 
-- `mcpgen init`, `mcpgen generate`, `mcpgen inspect`, and `mcpgen doctor`
+- `mcpgen init`, `mcpgen generate`, `mcpgen inspect`, `mcpgen doctor`, and `mcpgen eval-routing`
 - FastAPI and MCP stdio generation modes
 - generated `tools.json`, `tools.all.json`, `tools.embeddings.json`, `safety_report.json`, `tool_catalog.md`, and `mcpgen.runtime.json`
 - safe GET execution only
 - policy, audit, metrics, auth passthrough/API key injection, rate limiting, validation, mocks, failure injection, tool selection, and local schema refs
+- routing evaluation for query-to-tool regression checks
 
 Still experimental:
 
@@ -75,7 +76,8 @@ Still experimental:
 - `doctor` diagnostics for specs and config readiness
 - Mock execution and failure injection for offline development
 - Human-readable generated tool catalog
-- CLI commands: `init`, `generate`, `inspect`, `doctor`
+- Routing evaluation for semantic/keyword routing checks
+- CLI commands: `init`, `generate`, `inspect`, `doctor`, `eval-routing`
 - Config via `mcpgen.yaml`
 - MIT licensed
 
@@ -147,6 +149,12 @@ Generate a FastAPI server:
 
 ```bash
 mcpgen generate --from openapi.yaml --config mcpgen.yaml --mode fastapi --output generated_jsonplaceholder
+```
+
+Evaluate routing:
+
+```bash
+mcpgen eval-routing --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml
 ```
 
 Run it:
@@ -270,6 +278,42 @@ Example:
 - `name`: string
 - `email`: string
 ```
+
+## Routing Evaluation
+
+`mcpgen eval-routing` checks whether natural-language queries route to expected safe tools.
+
+Example `routing_eval.yaml`:
+
+```yaml
+- query: list all users
+  expected:
+    - list_users
+- query: get user by id
+  expected:
+    - get_user_by_id
+```
+
+Run:
+
+```bash
+mcpgen eval-routing --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml
+```
+
+Example output:
+
+```text
+Routing eval: 2/2 passed
+Accuracy: 100%
+Routing mode: semantic
+Top K: 5
+
+[PASS] list all users
+Expected: list_users
+Returned: list_users, get_user_by_id
+```
+
+If any case fails, the command exits with code `1`, making it useful in CI before exposing a generated server to an agent.
 
 ## FastAPI Demo Commands
 

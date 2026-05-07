@@ -11,11 +11,13 @@ def test_init_project_writes_starter_files(tmp_path: Path) -> None:
     assert tmp_path / "mcpgen.yaml" in written
     assert tmp_path / ".env.example" in written
     assert tmp_path / "openapi.yaml" in written
+    assert tmp_path / "routing_eval.yaml" in written
     assert "mock:\n  enabled: false" in (tmp_path / "mcpgen.yaml").read_text(encoding="utf-8")
     assert "API_BASE_URL=https://jsonplaceholder.typicode.com" in (tmp_path / ".env.example").read_text(
         encoding="utf-8"
     )
     assert "operationId: listUsers" in (tmp_path / "openapi.yaml").read_text(encoding="utf-8")
+    assert "expected:" in (tmp_path / "routing_eval.yaml").read_text(encoding="utf-8")
 
 
 def test_init_project_mock_profile_enables_mock_mode(tmp_path: Path) -> None:

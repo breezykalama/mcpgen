@@ -2,6 +2,15 @@
 
 All notable MCPGen changes are documented here.
 
+## 1.5.0 - 2026-05-07
+
+### Added
+
+- Added `mcpgen watchdog` for OpenAPI spec drift detection.
+- Added `mcpgen.baseline.json` generation through `--write-baseline`.
+- Watchdog compares tool names, methods, paths, risk levels, input schemas, response schemas, and exposure status.
+- Watchdog runs smoke checks and optional routing evals.
+
 ## 1.4.0 - 2026-05-07
 
 ### Added

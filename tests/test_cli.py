@@ -195,6 +195,56 @@ def test_smoke_command_exits_nonzero_on_failure(tmp_path) -> None:
     assert "[FAIL] safe_tools:" in result.stdout
 
 
+def test_watchdog_command_writes_and_checks_baseline(tmp_path) -> None:
+    runner = CliRunner()
+    baseline_path = tmp_path / "mcpgen.baseline.json"
+
+    write_result = runner.invoke(
+        app,
+        [
+            "watchdog",
+            "--from",
+            "examples/openapi.yaml",
+            "--baseline",
+            str(baseline_path),
+            "--write-baseline",
+        ],
+    )
+    check_result = runner.invoke(
+        app,
+        [
+            "watchdog",
+            "--from",
+            "examples/openapi.yaml",
+            "--baseline",
+            str(baseline_path),
+        ],
+    )
+
+    assert write_result.exit_code == 0
+    assert baseline_path.exists()
+    assert "MCPGen watchdog: pass" in check_result.stdout
+    assert check_result.exit_code == 0
+
+
+def test_watchdog_command_exits_nonzero_without_baseline(tmp_path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "watchdog",
+            "--from",
+            "examples/openapi.yaml",
+            "--baseline",
+            str(tmp_path / "missing.json"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Baseline not found" in result.stdout
+
+
 def test_doctor_command_prints_diagnostics() -> None:
     runner = CliRunner()
 

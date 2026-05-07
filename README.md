@@ -40,6 +40,7 @@ Stable in this MVP:
 - policy, audit, metrics, auth passthrough/API key injection, rate limiting, validation, mocks, failure injection, tool selection, and local schema refs
 - routing evaluation for query-to-tool regression checks
 - smoke tests for generated servers and example scenarios
+- spec drift watchdog baselines for CI/CD
 - a documented `1.x` config compatibility contract
 
 Still experimental:
@@ -153,6 +154,18 @@ Run a smoke test:
 
 ```bash
 mcpgen smoke --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml
+```
+
+Create a watchdog baseline:
+
+```bash
+mcpgen watchdog --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml --write-baseline
+```
+
+Check for spec drift:
+
+```bash
+mcpgen watchdog --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml
 ```
 
 Generate a FastAPI server:
@@ -346,6 +359,46 @@ mcpgen smoke --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml
 
 Smoke failures exit with code `1`, so teams can use them in CI before publishing or deploying generated servers.
 
+## Spec Drift Watchdog
+
+API specs change. `mcpgen watchdog` helps catch when an OpenAPI change breaks the generated tool surface or routing expectations.
+
+Create and commit a baseline:
+
+```bash
+mcpgen watchdog \
+  --from openapi.yaml \
+  --config mcpgen.yaml \
+  --cases routing_eval.yaml \
+  --baseline mcpgen.baseline.json \
+  --write-baseline
+```
+
+Check for drift in CI:
+
+```bash
+mcpgen watchdog \
+  --from openapi.yaml \
+  --config mcpgen.yaml \
+  --cases routing_eval.yaml \
+  --baseline mcpgen.baseline.json
+```
+
+Watchdog detects:
+
+- removed tools
+- added tools
+- method changes
+- path changes
+- risk-level changes
+- input schema changes
+- response schema changes
+- exposed/withheld status changes
+- smoke failures
+- routing eval failures
+
+Removed tools and changed tool contracts fail the command. Added tools are reported as warnings so developers can review and update the baseline intentionally.
+
 ## Production Readiness
 
 MCPGen is no longer a proof-of-concept MVP. It is an early-stage production-oriented framework with a stable `1.x` developer contract.
@@ -355,6 +408,7 @@ Current production-readiness work includes:
 - Python 3.10, 3.11, and 3.12 CI matrix
 - generated-server smoke tests
 - response validation metadata on safe execution and mocks
+- watchdog baseline checks for spec drift
 - example gallery smoke checks
 - routing evaluation
 - security policy

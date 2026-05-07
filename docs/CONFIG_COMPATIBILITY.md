@@ -55,3 +55,4 @@ When changing MCPGen versions:
 2. Run `mcpgen smoke --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml`.
 3. Review generated `tool_catalog.md`.
 4. Review `safety_report.json`.
+5. Run `mcpgen watchdog --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml`.

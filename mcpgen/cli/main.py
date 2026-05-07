@@ -10,6 +10,7 @@ from mcpgen.core.init_project import init_project
 from mcpgen.core.inspector import inspect_spec
 from mcpgen.core.routing_eval import evaluate_routing
 from mcpgen.core.smoke import run_smoke_test
+from mcpgen.core.watchdog import DEFAULT_BASELINE_PATH, run_watchdog
 
 app = typer.Typer(help="Generate safe-by-default MCP-style servers from OpenAPI specs.")
 
@@ -271,6 +272,78 @@ def smoke(
     result = run_smoke_test(from_, loaded_config, config_path=config, cases_path=cases, mode=mode)
 
     typer.echo(f"MCPGen smoke: {result['status']}")
+    for check in result["checks"]:
+        typer.echo(f"[{check['status'].upper()}] {check['name']}: {check['message']}")
+
+    if result["status"] == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def watchdog(
+    from_: Path = typer.Option(
+        ...,
+        "--from",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to an OpenAPI YAML or JSON file.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to mcpgen.yaml config.",
+    ),
+    baseline: Path = typer.Option(
+        DEFAULT_BASELINE_PATH,
+        "--baseline",
+        help="Path to committed watchdog baseline JSON.",
+    ),
+    cases: Optional[Path] = typer.Option(
+        None,
+        "--cases",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Optional routing eval YAML cases.",
+    ),
+    mode: str = typer.Option(
+        "fastapi",
+        "--mode",
+        case_sensitive=False,
+        help="Generated server mode to smoke test: fastapi or mcp.",
+    ),
+    write_baseline: bool = typer.Option(
+        False,
+        "--write-baseline",
+        help="Write or update the baseline instead of checking drift.",
+    ),
+) -> None:
+    """Detect OpenAPI/tool drift and run smoke/routing checks."""
+    mode = mode.lower()
+    if mode not in {"fastapi", "mcp"}:
+        raise typer.BadParameter("mode must be 'fastapi' or 'mcp'")
+
+    loaded_config = load_config(config)
+    result = run_watchdog(
+        from_,
+        loaded_config,
+        baseline_path=baseline,
+        cases_path=cases,
+        config_path=config,
+        mode=mode,
+        write_baseline=write_baseline,
+    )
+
+    typer.echo(f"MCPGen watchdog: {result['status']}")
+    typer.echo(f"Baseline: {result['baseline_path']}")
     for check in result["checks"]:
         typer.echo(f"[{check['status'].upper()}] {check['name']}: {check['message']}")
 

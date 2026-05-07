@@ -1,6 +1,12 @@
 max_tools: 5
 allowed_methods:
   - GET
+include_tools: []
+exclude_tools: []
+include_paths: []
+exclude_paths: []
+include_methods: []
+exclude_methods: []
 output_dir: generated_mcp_server
 api_base_url: https://api.example.com
 enabled_tools: []
@@ -8,3 +14,22 @@ execution_mode: dry-run
 audit_enabled: true
 audit_log_path: logs/audit.log
 routing_mode: semantic
+metrics_enabled: true
+metrics_path: logs/metrics.json
+auth:
+  mode: none
+  api_key_env: API_KEY
+  api_key_header: X-API-Key
+rate_limit:
+  enabled: false
+  per_tool: 10
+  global: 100
+  window_seconds: 60
+mock:
+  enabled: false
+  mode: schema
+  seed: 123
+  list_size: 3
+failure_injection:
+  enabled: false
+  scenarios: {}

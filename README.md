@@ -27,6 +27,26 @@ MCPGen reads an OpenAPI YAML or JSON file and generates:
 
 The default behavior is intentionally conservative: only low-risk `GET` tools are exposed.
 
+## Status
+
+MCPGen `1.0.0` is a stable production-oriented MVP. The current config keys, CLI commands, generated file names, and safe-by-default execution model are intended to be the first stable developer contract.
+
+Stable in this MVP:
+
+- `mcpgen generate`, `mcpgen inspect`, and `mcpgen doctor`
+- FastAPI and MCP stdio generation modes
+- generated `tools.json`, `tools.all.json`, `tools.embeddings.json`, `safety_report.json`, and `mcpgen.runtime.json`
+- safe GET execution only
+- policy, audit, metrics, auth passthrough/API key injection, rate limiting, validation, mocks, failure injection, tool selection, and local schema refs
+
+Still experimental:
+
+- semantic embedding quality and embedding model selection
+- MCP stdio scaffold details
+- complex OpenAPI schema composition
+- mock data realism
+- file-based observability for production operations
+
 ## Features
 
 - OpenAPI YAML/JSON parsing
@@ -53,8 +73,9 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 - Runtime input validation for required fields, basic types, and enums
 - `doctor` diagnostics for specs and config readiness
 - Mock execution and failure injection for offline development
-- CLI commands: `generate`, `inspect`
+- CLI commands: `generate`, `inspect`, `doctor`
 - Config via `mcpgen.yaml`
+- MIT licensed
 
 ## Architecture Flow
 
@@ -87,6 +108,12 @@ Install from PyPI after publishing:
 
 ```bash
 pip install openapi-mcpgen
+```
+
+Optional semantic routing dependency:
+
+```bash
+pip install "openapi-mcpgen[semantic]"
 ```
 
 Inspect a spec:
@@ -918,7 +945,7 @@ MCPGen doctor: warn
 - This is a production-oriented MVP, not a production-ready framework.
 - Auth support is limited to bearer passthrough and API key header injection.
 - Request validation is MVP-level and not full JSON Schema validation.
-- Mock responses are simple deterministic fixtures, not full response-schema generation.
+- Mock responses are deterministic fixtures shaped by response schemas when available, not realistic domain datasets.
 - Failure injection is configured per tool and supports only common MVP scenarios.
 - Tool selection supports simple names, methods, and shell-style path wildcards, not full OpenAPI tag/group policies yet.
 - Schema support resolves local refs and simple `allOf`, but not remote refs, discriminators, or complex composition.
@@ -934,17 +961,19 @@ MCPGen doctor: warn
 ## Roadmap
 
 - Official MCP SDK integration
-- Auth and secret management
 - OAuth2 support
 - Confirmation workflow for enabled medium-risk tools
 - Response validation
 - Full JSON Schema validation
 - OpenAPI tag-based tool selection
 - Failure scenario probabilities and per-request overrides
-- Better OpenAPI schema support
 - Pluggable audit sinks
 - Better semantic routing models and embedding cache optimization
 - Deployment templates
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Publishing
 

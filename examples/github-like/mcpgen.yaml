@@ -1,0 +1,24 @@
+max_tools: 5
+allowed_methods:
+  - GET
+output_dir: generated_github_like
+api_base_url: https://api.github.example
+execution_mode: dry-run
+routing_mode: keyword
+audit_enabled: true
+metrics_enabled: true
+auth:
+  mode: bearer_passthrough
+rate_limit:
+  enabled: true
+  per_tool: 20
+  global: 200
+  window_seconds: 60
+mock:
+  enabled: true
+  mode: schema
+  seed: 123
+  list_size: 2
+failure_injection:
+  enabled: false
+  scenarios: {}

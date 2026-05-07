@@ -1,0 +1,6 @@
+- query: list customers
+  expected:
+    - list_customers
+- query: show invoices for a customer
+  expected:
+    - list_invoices

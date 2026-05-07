@@ -2,6 +2,16 @@
 
 All notable MCPGen changes are documented here.
 
+## 1.3.0 - 2026-05-07
+
+### Added
+
+- Added `mcpgen smoke` for end-to-end generation confidence checks.
+- Added an example gallery with JSONPlaceholder, GitHub-like, and billing API scenarios.
+- Added CI matrix for Python 3.10, 3.11, and 3.12.
+- Added CI smoke checks for example scenarios.
+- Added security policy and config compatibility documentation.
+
 ## 1.2.0 - 2026-05-07
 
 ### Added

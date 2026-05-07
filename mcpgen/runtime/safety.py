@@ -3,7 +3,7 @@ from mcpgen.core.models import RiskLevel, Tool
 
 def filter_safe_tools(tools: list[Tool], allowed_methods: set[str] | None = None) -> list[Tool]:
     """MVP safety policy: expose only enabled low-risk tools."""
-    allowed = allowed_methods or {"GET"}
+    allowed = {"GET"} if allowed_methods is None else allowed_methods
     return [
         tool
         for tool in tools
@@ -13,7 +13,7 @@ def filter_safe_tools(tools: list[Tool], allowed_methods: set[str] | None = None
 
 def build_safety_report(tools: list[Tool], safe_tools: list[Tool], allowed_methods: set[str] | None = None) -> dict:
     """Explain which tools were exposed or withheld by the safety layer."""
-    allowed = allowed_methods or {"GET"}
+    allowed = {"GET"} if allowed_methods is None else allowed_methods
     safe_names = {tool.name for tool in safe_tools}
 
     return {

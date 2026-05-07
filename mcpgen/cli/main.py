@@ -9,6 +9,7 @@ from mcpgen.core.generator import generate_project
 from mcpgen.core.init_project import init_project
 from mcpgen.core.inspector import inspect_spec
 from mcpgen.core.routing_eval import evaluate_routing
+from mcpgen.core.smoke import run_smoke_test
 
 app = typer.Typer(help="Generate safe-by-default MCP-style servers from OpenAPI specs.")
 
@@ -53,6 +54,10 @@ def init(
     typer.echo("")
     typer.echo("Next:")
     typer.echo(f"mcpgen doctor --from {directory / 'openapi.yaml'} --config {directory / 'mcpgen.yaml'}")
+    typer.echo(
+        f"mcpgen smoke --from {directory / 'openapi.yaml'} --config {directory / 'mcpgen.yaml'} "
+        f"--cases {directory / 'routing_eval.yaml'}"
+    )
     typer.echo(f"mcpgen generate --from {directory / 'openapi.yaml'} --config {directory / 'mcpgen.yaml'}")
 
 
@@ -215,6 +220,59 @@ def eval_routing(
         typer.echo(f"[{status}] {case_result['query']}")
         typer.echo(f"Expected: {', '.join(case_result['expected'])}")
         typer.echo(f"Returned: {', '.join(case_result['returned']) or '(none)'}")
+
+    if result["status"] == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def smoke(
+    from_: Path = typer.Option(
+        ...,
+        "--from",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to an OpenAPI YAML or JSON file.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to mcpgen.yaml config.",
+    ),
+    cases: Optional[Path] = typer.Option(
+        None,
+        "--cases",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Optional routing eval YAML cases.",
+    ),
+    mode: str = typer.Option(
+        "fastapi",
+        "--mode",
+        case_sensitive=False,
+        help="Generated server mode to smoke test: fastapi or mcp.",
+    ),
+) -> None:
+    """Run an end-to-end generation smoke test in a temporary directory."""
+    mode = mode.lower()
+    if mode not in {"fastapi", "mcp"}:
+        raise typer.BadParameter("mode must be 'fastapi' or 'mcp'")
+
+    loaded_config = load_config(config)
+    result = run_smoke_test(from_, loaded_config, config_path=config, cases_path=cases, mode=mode)
+
+    typer.echo(f"MCPGen smoke: {result['status']}")
+    for check in result["checks"]:
+        typer.echo(f"[{check['status'].upper()}] {check['name']}: {check['message']}")
 
     if result["status"] == "fail":
         raise typer.Exit(code=1)

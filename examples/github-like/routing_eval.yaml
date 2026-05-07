@@ -1,0 +1,6 @@
+- query: list open issues for a repo
+  expected:
+    - list_issues
+- query: show repository pull requests
+  expected:
+    - list_pull_requests

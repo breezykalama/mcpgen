@@ -1,0 +1,26 @@
+max_tools: 5
+allowed_methods:
+  - GET
+output_dir: generated_billing
+api_base_url: https://billing.example.com
+execution_mode: dry-run
+routing_mode: keyword
+audit_enabled: true
+metrics_enabled: true
+auth:
+  mode: api_key
+  api_key_env: BILLING_API_KEY
+  api_key_header: X-Billing-Key
+rate_limit:
+  enabled: true
+  per_tool: 10
+  global: 100
+  window_seconds: 60
+mock:
+  enabled: true
+  mode: schema
+  seed: 42
+  list_size: 3
+failure_injection:
+  enabled: false
+  scenarios: {}

@@ -1,0 +1,12 @@
+- query: list all users
+  expected:
+    - list_users
+- query: get user by id
+  expected:
+    - get_user_by_id
+- query: show posts for a user
+  expected:
+    - list_posts
+- query: get post details
+  expected:
+    - get_post_by_id

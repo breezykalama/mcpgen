@@ -1,0 +1,21 @@
+max_tools: 5
+allowed_methods:
+  - GET
+output_dir: generated_jsonplaceholder
+api_base_url: https://jsonplaceholder.typicode.com
+execution_mode: dry-run
+routing_mode: semantic
+audit_enabled: true
+metrics_enabled: true
+rate_limit:
+  enabled: false
+  per_tool: 10
+  global: 100
+  window_seconds: 60
+auth:
+  mode: none
+mock:
+  enabled: false
+failure_injection:
+  enabled: false
+  scenarios: {}

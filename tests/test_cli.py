@@ -142,6 +142,59 @@ def test_eval_routing_command_exits_nonzero_on_failure(tmp_path) -> None:
     assert "[FAIL] list invoices" in result.stdout
 
 
+def test_smoke_command_prints_summary(tmp_path) -> None:
+    cases_path = tmp_path / "routing_eval.yaml"
+    cases_path.write_text(
+        """
+        - query: list invoices
+          expected:
+            - list_invoices
+        """,
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "smoke",
+            "--from",
+            "examples/openapi.yaml",
+            "--cases",
+            str(cases_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "MCPGen smoke: pass" in result.stdout
+    assert "[PASS] generated_server:" in result.stdout
+
+
+def test_smoke_command_exits_nonzero_on_failure(tmp_path) -> None:
+    config_path = tmp_path / "mcpgen.yaml"
+    config_path.write_text(
+        """
+        allowed_methods: []
+        """,
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "smoke",
+            "--from",
+            "examples/openapi.yaml",
+            "--config",
+            str(config_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "[FAIL] safe_tools:" in result.stdout
+
+
 def test_doctor_command_prints_diagnostics() -> None:
     runner = CliRunner()
 

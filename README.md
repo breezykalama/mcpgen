@@ -39,6 +39,8 @@ Stable in this MVP:
 - safe GET execution only
 - policy, audit, metrics, auth passthrough/API key injection, rate limiting, validation, mocks, failure injection, tool selection, and local schema refs
 - routing evaluation for query-to-tool regression checks
+- smoke tests for generated servers and example scenarios
+- a documented `1.x` config compatibility contract
 
 Still experimental:
 
@@ -77,6 +79,7 @@ Still experimental:
 - Mock execution and failure injection for offline development
 - Human-readable generated tool catalog
 - Routing evaluation for semantic/keyword routing checks
+- End-to-end smoke testing for generated server confidence
 - CLI commands: `init`, `generate`, `inspect`, `doctor`, `eval-routing`
 - Config via `mcpgen.yaml`
 - MIT licensed
@@ -143,6 +146,12 @@ Run diagnostics:
 
 ```bash
 mcpgen doctor --from openapi.yaml --config mcpgen.yaml
+```
+
+Run a smoke test:
+
+```bash
+mcpgen smoke --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml
 ```
 
 Generate a FastAPI server:
@@ -314,6 +323,67 @@ Returned: list_users, get_user_by_id
 ```
 
 If any case fails, the command exits with code `1`, making it useful in CI before exposing a generated server to an agent.
+
+## Smoke Tests
+
+`mcpgen smoke` runs a lightweight end-to-end confidence check in a temporary directory.
+
+It checks:
+
+- `doctor` diagnostics
+- safe tool exposure
+- risky tool withholding
+- generated file presence
+- generated FastAPI or MCP server importability
+- optional routing eval cases
+
+Run:
+
+```bash
+mcpgen smoke --from openapi.yaml --config mcpgen.yaml --cases routing_eval.yaml
+```
+
+Smoke failures exit with code `1`, so teams can use them in CI before publishing or deploying generated servers.
+
+## Production Readiness
+
+MCPGen is no longer a proof-of-concept MVP. It is an early-stage production-oriented framework with a stable `1.x` developer contract.
+
+Current production-readiness work includes:
+
+- Python 3.10, 3.11, and 3.12 CI matrix
+- generated-server smoke tests
+- example gallery smoke checks
+- routing evaluation
+- security policy
+- config compatibility notes
+- changelog and release tags
+
+Remaining maturity work:
+
+- official MCP SDK integration
+- broader OpenAPI compatibility testing against real-world specs
+- response validation
+- policy extension hooks
+- external audit/metrics sinks
+- deployment guides
+
+See [SECURITY.md](SECURITY.md) and [docs/CONFIG_COMPATIBILITY.md](docs/CONFIG_COMPATIBILITY.md).
+
+## Example Gallery
+
+MCPGen includes example scenarios under `examples/`:
+
+- `examples/jsonplaceholder` uses the public JSONPlaceholder API.
+- `examples/github-like` demonstrates repository issues, pull requests, bearer passthrough config, and withheld writes.
+- `examples/billing-api` demonstrates billing-style tools, API key config, mocks, and withheld invoice writes/deletes.
+
+Each example includes:
+
+- OpenAPI spec
+- `mcpgen.yaml`
+- `routing_eval.yaml`
+- README with expected safety behavior
 
 ## FastAPI Demo Commands
 
@@ -1009,6 +1079,7 @@ It checks:
 
 - config loading and validation
 - OpenAPI parseability
+- generated server smoke checks
 - execution mode
 - routing mode
 - API base URL readiness

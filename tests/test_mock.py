@@ -54,3 +54,39 @@ def test_mock_get_by_id_returns_object_using_params() -> None:
     assert result["data"]["id"] == 42
     assert result["data"]["include"] == "profile"
     assert result["data"]["mock"] is True
+
+
+def test_mock_uses_response_schema_when_available() -> None:
+    tool = {
+        "name": "list_users",
+        "method": "GET",
+        "path": "/users",
+        "input_schema": {},
+        "response_schema": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "address": {
+                        "type": "object",
+                        "properties": {
+                            "city": {"type": "string"},
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+    result = build_mock_response(
+        tool,
+        {},
+        {"mock": {"enabled": True, "seed": 123, "list_size": 2}},
+    )
+
+    assert len(result["data"]) == 2
+    assert result["data"][0]["id"] == 1
+    assert result["data"][0]["name"] == "name_1"
+    assert result["data"][0]["address"]["city"] == "city_1"

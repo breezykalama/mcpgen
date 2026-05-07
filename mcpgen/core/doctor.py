@@ -132,6 +132,12 @@ def inspection_checks(inspection: dict, config: MCPGenConfig) -> list[dict]:
     else:
         checks.append(fail_check("tools", "No tools were generated from the spec."))
 
+    unresolved_refs = inspection.get("unresolved_refs") or []
+    if unresolved_refs:
+        checks.append(warn_check("openapi_refs", f"Unresolved local/remote refs: {', '.join(unresolved_refs)}."))
+    else:
+        checks.append(pass_check("openapi_refs", "No unresolved refs found in generated endpoints."))
+
     if excluded_tools > 0:
         checks.append(pass_check("tool_selection", f"Selection excluded {excluded_tools} tool(s)."))
 

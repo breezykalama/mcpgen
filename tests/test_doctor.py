@@ -85,3 +85,32 @@ def test_doctor_fails_invalid_tool_selection_method(tmp_path: Path) -> None:
 
     assert result["status"] == "fail"
     assert any(check["name"] == "tool_selection" and check["status"] == "fail" for check in result["checks"])
+
+
+def test_doctor_warns_about_unresolved_refs(tmp_path: Path) -> None:
+    spec_path = tmp_path / "openapi.yaml"
+    spec_path.write_text(
+        """
+        openapi: 3.0.0
+        info:
+          title: Example
+          version: 1.0.0
+        paths:
+          /users:
+            get:
+              operationId: listUsers
+              responses:
+                "200":
+                  description: Users
+                  content:
+                    application/json:
+                      schema:
+                        $ref: "#/components/schemas/Missing"
+        """,
+        encoding="utf-8",
+    )
+
+    result = run_doctor(spec_path)
+
+    assert result["status"] == "warn"
+    assert any(check["name"] == "openapi_refs" and check["status"] == "warn" for check in result["checks"])

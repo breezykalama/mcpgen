@@ -19,6 +19,7 @@ def endpoint_to_tool(endpoint: Endpoint) -> Tool:
         parameters=endpoint.parameters,
         request_body=endpoint.request_body,
         input_schema=build_input_schema(endpoint),
+        response_schema=extract_response_schema(endpoint.responses),
     )
 
 
@@ -113,6 +114,24 @@ def extract_json_body_schema(request_body: dict) -> dict | None:
     if not isinstance(schema, dict):
         return None
     return schema
+
+
+def extract_response_schema(responses: dict) -> dict | None:
+    for status_code in preferred_response_codes(responses):
+        response = responses.get(status_code)
+        if not isinstance(response, dict):
+            continue
+        schema = extract_json_body_schema(response)
+        if schema:
+            return schema
+    return None
+
+
+def preferred_response_codes(responses: dict) -> list[str]:
+    exact = ["200", "201", "202", "default"]
+    ordered = [code for code in exact if code in responses]
+    success_codes = sorted(code for code in responses if code.startswith("2") and code not in ordered)
+    return ordered + success_codes
 
 
 def slugify(value: str) -> str:

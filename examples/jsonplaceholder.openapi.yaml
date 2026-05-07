@@ -10,6 +10,15 @@ paths:
       operationId: listUsers
       summary: List users
       description: Return all demo users.
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
   /users/{id}:
     get:
       operationId: getUserById
@@ -22,6 +31,13 @@ paths:
           description: User ID
           schema:
             type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
   /posts:
     get:
       operationId: listPosts
@@ -34,6 +50,15 @@ paths:
           description: Filter posts by user ID
           schema:
             type: integer
+      responses:
+        "200":
+          description: Posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
     post:
       operationId: createPost
       summary: Create post
@@ -43,18 +68,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - title
-                - body
-                - userId
-              properties:
-                title:
-                  type: string
-                body:
-                  type: string
-                userId:
-                  type: integer
+              $ref: "#/components/schemas/PostInput"
+      responses:
+        "201":
+          description: Created post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
   /posts/{id}:
     get:
       operationId: getPostById
@@ -67,6 +88,13 @@ paths:
           description: Post ID
           schema:
             type: integer
+      responses:
+        "200":
+          description: Post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
     delete:
       operationId: deletePost
       summary: Delete post
@@ -78,3 +106,78 @@ paths:
           description: Post ID
           schema:
             type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+components:
+  schemas:
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+        suite:
+          type: string
+        city:
+          type: string
+        zipcode:
+          type: string
+    Company:
+      type: object
+      properties:
+        name:
+          type: string
+        catchPhrase:
+          type: string
+        bs:
+          type: string
+    User:
+      type: object
+      required:
+        - id
+        - name
+        - email
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        address:
+          $ref: "#/components/schemas/Address"
+        phone:
+          type: string
+        website:
+          type: string
+        company:
+          $ref: "#/components/schemas/Company"
+    PostInput:
+      type: object
+      required:
+        - title
+        - body
+        - userId
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+        userId:
+          type: integer
+    Post:
+      allOf:
+        - $ref: "#/components/schemas/PostInput"
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: integer

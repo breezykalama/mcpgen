@@ -18,6 +18,7 @@ class Endpoint(BaseModel):
     path: str
     parameters: list[dict[str, Any]] = Field(default_factory=list)
     request_body: dict[str, Any] | None = None
+    responses: dict[str, Any] = Field(default_factory=dict)
 
 
 class Tool(BaseModel):
@@ -31,6 +32,7 @@ class Tool(BaseModel):
     parameters: list[dict[str, Any]] = Field(default_factory=list)
     request_body: dict[str, Any] | None = None
     input_schema: dict[str, Any] = Field(default_factory=dict)
+    response_schema: dict[str, Any] | None = None
 
 
 class GenerationResult(BaseModel):

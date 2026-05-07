@@ -38,6 +38,8 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
   - `DELETE` = high
 - Safe-by-default filtering
 - Input schema generation from path/query parameters and JSON request bodies
+- Local `$ref` resolution for OpenAPI components
+- Response schema extraction for generated tools
 - Semantic tool routing with keyword fallback
 - FastAPI mode
 - MCP stdio mode with `tools/list` and `tools/call`
@@ -62,6 +64,7 @@ OpenAPI spec
   -> tool generator
   -> tool selection
   -> risk classifier
+  -> local schema/ref resolver
   -> safety filter
   -> tools.json / tools.all.json / tools.embeddings.json / safety_report.json
   -> generated FastAPI or MCP server
@@ -407,6 +410,36 @@ mcpgen doctor --from examples/jsonplaceholder.openapi.yaml --config mcpgen.yaml
 
 `inspect` reports discovered, selected, excluded, exposed, and withheld tool counts. `doctor` warns if selection excludes every generated tool.
 
+## OpenAPI Schema Support
+
+v0.9.0 adds better schema handling for real-world specs:
+
+- resolves local refs such as `#/components/schemas/User`
+- supports nested objects and arrays after refs are resolved
+- merges simple `allOf` object schemas
+- extracts JSON response schemas into each generated tool
+- uses response schemas to produce more useful mock responses
+- warns through `mcpgen doctor` when unresolved refs remain
+
+Example generated tool excerpt:
+
+```json
+{
+  "name": "get_user_by_id",
+  "method": "GET",
+  "path": "/users/{id}",
+  "response_schema": {
+    "type": "object",
+    "properties": {
+      "id": {"type": "integer"},
+      "name": {"type": "string"}
+    }
+  }
+}
+```
+
+This is still intentionally MVP-level. Remote refs, complex composition rules, discriminators, and full JSON Schema validation are not implemented yet.
+
 ## Safety Model
 
 MCPGen is safe by default:
@@ -468,6 +501,8 @@ This validation is intentionally MVP-level. It catches common input mistakes bef
 
 v0.7.0 adds mock execution so developers can test generated servers without a live API, database, credentials, or internet access.
 
+v0.9.0 improves mock responses by using OpenAPI response schemas when they are available.
+
 Config:
 
 ```yaml
@@ -478,7 +513,7 @@ mock:
   list_size: 3
 ```
 
-When mock mode is enabled, safe `GET` execution returns deterministic mock data instead of calling the upstream API. Policy, validation, rate limiting, audit logging, and metrics still apply.
+When mock mode is enabled, safe `GET` execution returns deterministic mock data instead of calling the upstream API. Policy, validation, rate limiting, audit logging, and metrics still apply. If a tool has a `response_schema`, MCPGen uses it to shape mock objects and arrays.
 
 Example mock response:
 
@@ -886,6 +921,7 @@ MCPGen doctor: warn
 - Mock responses are simple deterministic fixtures, not full response-schema generation.
 - Failure injection is configured per tool and supports only common MVP scenarios.
 - Tool selection supports simple names, methods, and shell-style path wildcards, not full OpenAPI tag/group policies yet.
+- Schema support resolves local refs and simple `allOf`, but not remote refs, discriminators, or complex composition.
 - No OAuth2 flow yet.
 - No write execution.
 - No confirmation workflow UI.
@@ -901,10 +937,9 @@ MCPGen doctor: warn
 - Auth and secret management
 - OAuth2 support
 - Confirmation workflow for enabled medium-risk tools
-- Request/response validation
+- Response validation
 - Full JSON Schema validation
 - OpenAPI tag-based tool selection
-- Response-schema-aware mock generation
 - Failure scenario probabilities and per-request overrides
 - Better OpenAPI schema support
 - Pluggable audit sinks

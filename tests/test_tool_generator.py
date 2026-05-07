@@ -88,3 +88,38 @@ def test_request_body_object_schema_becomes_input_schema() -> None:
         },
         "required": ["customerId", "amount"],
     }
+
+
+def test_endpoint_to_tool_extracts_response_schema() -> None:
+    endpoint = Endpoint(
+        operation_id="getInvoice",
+        summary="Get invoice",
+        method="GET",
+        path="/invoices/{invoiceId}",
+        responses={
+            "200": {
+                "description": "Invoice",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "invoiceId": {"type": "string"},
+                                "amount": {"type": "number"},
+                            },
+                        }
+                    }
+                },
+            }
+        },
+    )
+
+    tool = endpoint_to_tool(endpoint)
+
+    assert tool.response_schema == {
+        "type": "object",
+        "properties": {
+            "invoiceId": {"type": "string"},
+            "amount": {"type": "number"},
+        },
+    }

@@ -12,6 +12,7 @@ Within `1.x`:
 - generated servers should continue to read `mcpgen.runtime.json`
 - write execution should not become enabled by default
 - high-risk `DELETE` tools should remain blocked by default
+- response validation should remain non-blocking unless a future explicit strict mode is configured
 
 ## Stable Config Areas
 

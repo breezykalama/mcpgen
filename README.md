@@ -75,6 +75,7 @@ Still experimental:
 - Upstream auth passthrough and API key injection without hardcoded secrets
 - Lightweight in-memory rate limiting
 - Runtime input validation for required fields, basic types, and enums
+- Response validation metadata for generated response schemas
 - `doctor` diagnostics for specs and config readiness
 - Mock execution and failure injection for offline development
 - Human-readable generated tool catalog
@@ -353,6 +354,7 @@ Current production-readiness work includes:
 
 - Python 3.10, 3.11, and 3.12 CI matrix
 - generated-server smoke tests
+- response validation metadata on safe execution and mocks
 - example gallery smoke checks
 - routing evaluation
 - security policy
@@ -363,7 +365,7 @@ Remaining maturity work:
 
 - official MCP SDK integration
 - broader OpenAPI compatibility testing against real-world specs
-- response validation
+- stricter response validation modes
 - policy extension hooks
 - external audit/metrics sinks
 - deployment guides
@@ -686,6 +688,40 @@ Validation runs in:
 - MCP `tools/call`
 
 This validation is intentionally MVP-level. It catches common input mistakes before network calls, but it is not a full JSON Schema validator yet.
+
+## Response Validation
+
+MCPGen validates successful safe execution and mock responses against generated `response_schema` when one is available.
+
+Example response metadata:
+
+```json
+{
+  "tool": "get_user_by_id",
+  "status": "success",
+  "status_code": 200,
+  "data": {
+    "id": 1,
+    "name": "Ada"
+  },
+  "response_validation": {
+    "valid": true,
+    "status": "valid",
+    "tool_name": "get_user_by_id",
+    "errors": []
+  }
+}
+```
+
+Current response validation checks:
+
+- required fields
+- basic JSON Schema types
+- enum values
+- arrays
+- nested objects
+
+In `1.4.0`, response validation is reported as metadata and does not block successful upstream responses. This keeps integrations tolerant while still surfacing schema drift. Stricter failure modes are planned for a future release.
 
 ## Mock Runtime
 

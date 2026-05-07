@@ -1,5 +1,7 @@
 import random
 
+from mcpgen.runtime.validation import validate_tool_response
+
 
 def should_use_mock(config: dict) -> bool:
     mock_config = config.get("mock") or {}
@@ -19,6 +21,7 @@ def build_mock_response(tool: dict, params: dict, config: dict) -> dict:
         "status_code": 200,
         "data": data,
         "mocked": True,
+        "response_validation": validate_tool_response(tool, data),
     }
 
 

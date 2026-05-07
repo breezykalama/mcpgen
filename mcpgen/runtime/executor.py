@@ -9,7 +9,7 @@ from mcpgen.runtime.failure import build_failure_response, get_failure_scenario
 from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.mock import build_mock_response, should_use_mock
 from mcpgen.runtime.policy import evaluate_tool_policy
-from mcpgen.runtime.validation import validate_tool_inputs
+from mcpgen.runtime.validation import validate_tool_inputs, validate_tool_response
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
 SUPPORTED_AUTH_MODES = {"none", "bearer_passthrough", "api_key"}
@@ -127,6 +127,7 @@ def execute_tool(
         response = httpx.get(url, headers=auth_headers, timeout=DEFAULT_TIMEOUT_SECONDS)
         response.raise_for_status()
         data = parse_response_data(response)
+        response_validation = validate_tool_response(tool, data)
         write_execution_event(
             tool,
             policy,
@@ -140,6 +141,7 @@ def execute_tool(
             "status": "success",
             "status_code": response.status_code,
             "data": data,
+            "response_validation": response_validation,
         }
     except httpx.HTTPStatusError as exc:
         write_execution_event(

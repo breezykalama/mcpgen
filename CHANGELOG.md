@@ -2,6 +2,14 @@
 
 All notable MCPGen changes are documented here.
 
+## 1.4.0 - 2026-05-07
+
+### Added
+
+- Added MVP response validation against generated `response_schema`.
+- Execution and mock responses now include `response_validation` metadata when applicable.
+- Response validation checks required fields, basic types, enums, arrays, and nested objects.
+
 ## 1.3.0 - 2026-05-07
 
 ### Added

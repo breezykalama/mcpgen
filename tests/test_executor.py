@@ -29,6 +29,12 @@ def list_invoice_tool() -> dict:
                 "customerId": {"type": "string", "x-mcpgen-location": "query"},
             },
         },
+        "response_schema": {
+            "type": "object",
+            "properties": {
+                "items": {"type": "array", "items": {"type": "object"}},
+            },
+        },
     }
 
 
@@ -69,6 +75,12 @@ def test_get_execution_success(monkeypatch, tmp_path: Path) -> None:
         "status": "success",
         "status_code": 200,
         "data": {"items": []},
+        "response_validation": {
+            "valid": True,
+            "status": "valid",
+            "tool_name": "list_invoices",
+            "errors": [],
+        },
     }
     assert captured["url"] == "https://api.example.test/invoices?customerId=cus_123"
     assert captured["headers"] == {}
@@ -153,7 +165,31 @@ def test_mock_execution_returns_mock_without_http(monkeypatch, tmp_path: Path) -
     assert result["status"] == "success"
     assert result["status_code"] == 200
     assert result["mocked"] is True
+    assert result["response_validation"]["valid"] is True
     assert result["data"]["id"] == 1
+
+
+def test_get_execution_includes_response_validation_errors(monkeypatch, tmp_path: Path) -> None:
+    tool = {
+        **list_invoice_tool(),
+        "response_schema": {
+            "type": "object",
+            "required": ["items"],
+            "properties": {"items": {"type": "array"}},
+        },
+    }
+
+    def fake_get(url, headers, timeout):
+        return httpx.Response(200, json={"items": "not-a-list"}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr("mcpgen.runtime.executor.httpx.get", fake_get)
+    config = make_config(tmp_path, [tool])
+
+    result = execute_tool("list_invoices", {}, config)
+
+    assert result["status"] == "success"
+    assert result["response_validation"]["valid"] is False
+    assert result["response_validation"]["errors"][0]["field"] == "response.items"
 
 
 def test_failure_injection_returns_error_without_http(monkeypatch, tmp_path: Path) -> None:

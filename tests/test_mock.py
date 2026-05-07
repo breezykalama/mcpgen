@@ -40,6 +40,7 @@ def test_mock_list_tool_returns_array() -> None:
 
     assert result["status"] == "success"
     assert result["mocked"] is True
+    assert result["response_validation"]["status"] == "skipped"
     assert len(result["data"]) == 2
     assert result["data"][0]["mock"] is True
 
@@ -87,6 +88,7 @@ def test_mock_uses_response_schema_when_available() -> None:
     )
 
     assert len(result["data"]) == 2
+    assert result["response_validation"]["valid"] is True
     assert result["data"][0]["id"] == 1
     assert result["data"][0]["name"] == "name_1"
     assert result["data"][0]["address"]["city"] == "city_1"

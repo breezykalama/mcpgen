@@ -10,6 +10,7 @@ from mcpgen.core.parser import parse_openapi
 VALID_AUTH_MODES = {"none", "bearer_passthrough", "api_key"}
 VALID_EXECUTION_MODES = {"dry-run", "safe-execute"}
 VALID_ROUTING_MODES = {"semantic", "keyword"}
+VALID_SELECTION_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 
 
 def run_doctor(spec_path: Path, config_path: Path | None = None) -> dict:
@@ -98,12 +99,31 @@ def config_checks(config: MCPGenConfig) -> list[dict]:
     else:
         checks.append(warn_check("audit", "Audit logging is disabled."))
 
+    checks.extend(selection_config_checks(config))
+
+    return checks
+
+
+def selection_config_checks(config: MCPGenConfig) -> list[dict]:
+    checks = []
+    invalid_include = sorted(config.normalized_include_methods() - VALID_SELECTION_METHODS)
+    invalid_exclude = sorted(config.normalized_exclude_methods() - VALID_SELECTION_METHODS)
+
+    if invalid_include:
+        checks.append(fail_check("tool_selection", f"Invalid include_methods value(s): {', '.join(invalid_include)}."))
+    elif invalid_exclude:
+        checks.append(fail_check("tool_selection", f"Invalid exclude_methods value(s): {', '.join(invalid_exclude)}."))
+    else:
+        checks.append(pass_check("tool_selection", "Tool selection config is valid."))
+
     return checks
 
 
 def inspection_checks(inspection: dict, config: MCPGenConfig) -> list[dict]:
     checks = []
     total_tools = inspection["total_tools"]
+    selected_tools = inspection["selected_tools"]
+    excluded_tools = inspection["excluded_tools"]
     exposed_tools = inspection["exposed_tools"]
     withheld_tools = inspection["withheld_tools"]
 
@@ -111,6 +131,12 @@ def inspection_checks(inspection: dict, config: MCPGenConfig) -> list[dict]:
         checks.append(pass_check("tools", f"Generated {total_tools} tool descriptor(s)."))
     else:
         checks.append(fail_check("tools", "No tools were generated from the spec."))
+
+    if excluded_tools > 0:
+        checks.append(pass_check("tool_selection", f"Selection excluded {excluded_tools} tool(s)."))
+
+    if total_tools > 0 and selected_tools == 0:
+        checks.append(warn_check("tool_selection", "Tool selection excluded every generated tool."))
 
     if exposed_tools > 0:
         checks.append(pass_check("safety", f"{exposed_tools} low-risk tool(s) will be exposed."))

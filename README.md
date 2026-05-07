@@ -31,6 +31,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 
 - OpenAPI YAML/JSON parsing
 - Tool generation from endpoints
+- Developer-controlled tool selection by name, path, and method
 - Risk classification:
   - `GET` = low
   - `POST`, `PUT`, `PATCH` = medium
@@ -59,6 +60,7 @@ The default behavior is intentionally conservative: only low-risk `GET` tools ar
 OpenAPI spec
   -> parser
   -> tool generator
+  -> tool selection
   -> risk classifier
   -> safety filter
   -> tools.json / tools.all.json / tools.embeddings.json / safety_report.json
@@ -372,6 +374,38 @@ $env:MCPGEN_EMBEDDING_BACKEND = "sentence-transformers"
 ```
 
 Compare routing modes by changing `routing_mode` in `mcpgen.yaml` and regenerating the server. Semantic mode ranks by vector similarity; keyword mode ranks by normalized token overlap and includes matched terms.
+
+## Tool Selection Controls
+
+v0.8.0 adds generation-time controls for narrowing large OpenAPI specs before safety filtering and server generation.
+
+Config:
+
+```yaml
+include_tools: []
+exclude_tools:
+  - delete_user
+include_paths:
+  - /users*
+exclude_paths:
+  - /admin/*
+  - /internal/*
+include_methods:
+  - GET
+exclude_methods:
+  - DELETE
+```
+
+Selection is applied before `tools.json`, `tools.all.json`, `tools.embeddings.json`, and `safety_report.json` are written. It never weakens MCPGen safety: excluded tools are removed from the generated surface, but selected `POST`, `PUT`, `PATCH`, and `DELETE` tools are still withheld unless the policy layer allows a safe dry-run or confirmation flow.
+
+Useful commands:
+
+```bash
+mcpgen inspect --from examples/jsonplaceholder.openapi.yaml --config mcpgen.yaml
+mcpgen doctor --from examples/jsonplaceholder.openapi.yaml --config mcpgen.yaml
+```
+
+`inspect` reports discovered, selected, excluded, exposed, and withheld tool counts. `doctor` warns if selection excludes every generated tool.
 
 ## Safety Model
 
@@ -776,6 +810,12 @@ Default config:
 max_tools: 5
 allowed_methods:
   - GET
+include_tools: []
+exclude_tools: []
+include_paths: []
+exclude_paths: []
+include_methods: []
+exclude_methods: []
 output_dir: generated_mcp_server
 api_base_url: https://api.example.com
 enabled_tools: []
@@ -820,6 +860,7 @@ It checks:
 - auth mode
 - rate limit settings
 - metrics and audit settings
+- tool selection rules
 - generated tool counts
 - exposed vs withheld tools
 - potential tool overload against `max_tools`
@@ -831,6 +872,7 @@ MCPGen doctor: warn
 [PASS] config: Config loaded successfully.
 [PASS] openapi: Parsed 6 endpoint(s).
 [WARN] api_base_url: api_base_url is using the default placeholder.
+[PASS] tool_selection: Tool selection config is valid.
 [PASS] safety: 4 low-risk tool(s) will be exposed.
 ```
 
@@ -843,6 +885,7 @@ MCPGen doctor: warn
 - Request validation is MVP-level and not full JSON Schema validation.
 - Mock responses are simple deterministic fixtures, not full response-schema generation.
 - Failure injection is configured per tool and supports only common MVP scenarios.
+- Tool selection supports simple names, methods, and shell-style path wildcards, not full OpenAPI tag/group policies yet.
 - No OAuth2 flow yet.
 - No write execution.
 - No confirmation workflow UI.
@@ -858,9 +901,9 @@ MCPGen doctor: warn
 - Auth and secret management
 - OAuth2 support
 - Confirmation workflow for enabled medium-risk tools
-- Rate limiting
 - Request/response validation
 - Full JSON Schema validation
+- OpenAPI tag-based tool selection
 - Response-schema-aware mock generation
 - Failure scenario probabilities and per-request overrides
 - Better OpenAPI schema support

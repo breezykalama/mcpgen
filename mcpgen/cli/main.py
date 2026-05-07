@@ -100,6 +100,8 @@ def inspect(
     result = inspect_spec(from_, config=loaded_config)
 
     typer.echo(f"Total tools: {result['total_tools']}")
+    typer.echo(f"Selected tools: {result['selected_tools']}")
+    typer.echo(f"Excluded tools: {result['excluded_tools']}")
     typer.echo(f"Exposed tools: {result['exposed_tools']}")
     typer.echo(f"Withheld tools: {result['withheld_tools']}")
     typer.echo("")
@@ -112,6 +114,12 @@ def inspect(
         typer.echo("")
         typer.echo("Withheld tools:")
         for tool in result["withheld"]:
+            typer.echo(f"- {tool['name']} ({tool['method']} {tool['path']}): {tool['reason']}")
+
+    if result["excluded"]:
+        typer.echo("")
+        typer.echo("Excluded by selection:")
+        for tool in result["excluded"]:
             typer.echo(f"- {tool['name']} ({tool['method']} {tool['path']}): {tool['reason']}")
 
 

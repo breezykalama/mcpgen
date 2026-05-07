@@ -6,6 +6,7 @@ from typing import Literal
 from mcpgen.core.config import MCPGenConfig, dump_runtime_config
 from mcpgen.core.models import GenerationResult, Tool
 from mcpgen.core.parser import parse_openapi
+from mcpgen.core.tool_selection import apply_tool_selection
 from mcpgen.core.tool_generator import generate_tools
 from mcpgen.runtime.embedding import generate_tool_embeddings
 from mcpgen.runtime.safety import build_safety_report, filter_safe_tools
@@ -23,10 +24,12 @@ def generate_project(
     """Generate tools.json and a runnable server scaffold."""
     config = config or MCPGenConfig()
     endpoints = parse_openapi(spec_path)
-    all_tools = generate_tools(endpoints)
+    discovered_tools = generate_tools(endpoints)
+    all_tools, selection_report = apply_tool_selection(discovered_tools, config)
     allowed_methods = config.normalized_allowed_methods()
     tools = filter_safe_tools(all_tools, allowed_methods=allowed_methods)
     safety_report = build_safety_report(all_tools, tools, allowed_methods=allowed_methods)
+    safety_report["selection"] = selection_report
 
     output_dir.mkdir(parents=True, exist_ok=True)
     write_tools_json(tools, output_dir / "tools.json")
@@ -65,6 +68,12 @@ def write_generated_config(config: MCPGenConfig, mode: str, path: Path) -> None:
         "mode": mode,
         "max_tools": config.max_tools,
         "allowed_methods": sorted(config.normalized_allowed_methods()),
+        "include_tools": config.include_tools,
+        "exclude_tools": config.exclude_tools,
+        "include_paths": config.include_paths,
+        "exclude_paths": config.exclude_paths,
+        "include_methods": sorted(config.normalized_include_methods()),
+        "exclude_methods": sorted(config.normalized_exclude_methods()),
         "output_dir": config.output_dir,
         "api_base_url": config.api_base_url,
         "enabled_tools": config.enabled_tools,

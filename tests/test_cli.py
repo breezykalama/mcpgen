@@ -49,6 +49,8 @@ def test_inspect_command_prints_summary() -> None:
 
     assert result.exit_code == 0
     assert "Total tools: 5" in result.stdout
+    assert "Selected tools: 5" in result.stdout
+    assert "Excluded tools: 0" in result.stdout
     assert "Exposed tools: 2" in result.stdout
     assert "Withheld tools: 3" in result.stdout
     assert "- high: 1" in result.stdout

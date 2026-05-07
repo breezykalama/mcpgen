@@ -48,3 +48,40 @@ def test_doctor_fails_invalid_config(tmp_path: Path) -> None:
 
     assert result["status"] == "fail"
     assert any(check["name"] == "rate_limit" and check["status"] == "fail" for check in result["checks"])
+
+
+def test_doctor_warns_when_tool_selection_excludes_everything(tmp_path: Path) -> None:
+    config_path = tmp_path / "mcpgen.yaml"
+    config_path.write_text(
+        """
+        exclude_paths:
+          - /*
+        """,
+        encoding="utf-8",
+    )
+
+    result = run_doctor(Path("examples/jsonplaceholder.openapi.yaml"), config_path=config_path)
+
+    assert result["status"] == "warn"
+    assert any(
+        check["name"] == "tool_selection"
+        and check["status"] == "warn"
+        and "excluded every generated tool" in check["message"]
+        for check in result["checks"]
+    )
+
+
+def test_doctor_fails_invalid_tool_selection_method(tmp_path: Path) -> None:
+    config_path = tmp_path / "mcpgen.yaml"
+    config_path.write_text(
+        """
+        include_methods:
+          - CONNECT
+        """,
+        encoding="utf-8",
+    )
+
+    result = run_doctor(Path("examples/jsonplaceholder.openapi.yaml"), config_path=config_path)
+
+    assert result["status"] == "fail"
+    assert any(check["name"] == "tool_selection" and check["status"] == "fail" for check in result["checks"])

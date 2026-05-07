@@ -41,6 +41,12 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     }
     assert runtime_config["max_tools"] == 5
     assert runtime_config["mode"] == "fastapi"
+    assert runtime_config["include_tools"] == []
+    assert runtime_config["exclude_tools"] == []
+    assert runtime_config["include_paths"] == []
+    assert runtime_config["exclude_paths"] == []
+    assert runtime_config["include_methods"] == []
+    assert runtime_config["exclude_methods"] == []
     assert runtime_config["api_base_url"] == "https://api.example.com"
     assert runtime_config["enabled_tools"] == []
     assert runtime_config["execution_mode"] == "dry-run"
@@ -74,6 +80,8 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     assert embeddings[0]["tool_name"] == "list_customers"
     assert env_example == "API_BASE_URL=https://api.example.com\n"
     assert "mode: fastapi" in generated_config
+    assert "include_tools:" in generated_config
+    assert "exclude_paths:" in generated_config
     assert "auth:" in generated_config
     assert "  mode: none" in generated_config
     assert "rate_limit:" in generated_config
@@ -89,6 +97,35 @@ def test_generate_project_honors_max_tools_config(tmp_path: Path) -> None:
     runtime_config = json.loads((output_dir / "mcpgen.runtime.json").read_text(encoding="utf-8"))
 
     assert runtime_config["max_tools"] == 1
+
+
+def test_generate_project_applies_tool_selection_before_safety(tmp_path: Path) -> None:
+    output_dir = tmp_path / "server"
+
+    result = generate_project(
+        Path("examples/openapi.yaml"),
+        output_dir,
+        config=MCPGenConfig(include_paths=["/invoices*"], exclude_tools=["delete_invoice"]),
+    )
+    tools = json.loads((output_dir / "tools.json").read_text(encoding="utf-8"))
+    all_tools = json.loads((output_dir / "tools.all.json").read_text(encoding="utf-8"))
+    safety_report = json.loads((output_dir / "safety_report.json").read_text(encoding="utf-8"))
+    embeddings = json.loads((output_dir / "tools.embeddings.json").read_text(encoding="utf-8"))
+
+    assert [tool["name"] for tool in tools] == ["list_invoices"]
+    assert [tool["name"] for tool in all_tools] == ["list_invoices", "create_invoice"]
+    assert [tool.name for tool in result.all_tools] == ["list_invoices", "create_invoice"]
+    assert [item["tool_name"] for item in embeddings] == ["list_invoices", "create_invoice"]
+    assert safety_report["selection"]["counts"] == {
+        "discovered_tools": 5,
+        "selected_tools": 2,
+        "excluded_tools": 3,
+    }
+    assert [tool["name"] for tool in safety_report["selection"]["excluded"]] == [
+        "list_customers",
+        "create_customer",
+        "delete_invoice",
+    ]
 
 
 def test_generated_server_exposes_root_and_safety(tmp_path: Path) -> None:

@@ -37,6 +37,12 @@ class MCPGenConfig(BaseModel):
 
     max_tools: int = 5
     allowed_methods: list[str] = Field(default_factory=lambda: ["GET"])
+    include_tools: list[str] = Field(default_factory=list)
+    exclude_tools: list[str] = Field(default_factory=list)
+    include_paths: list[str] = Field(default_factory=list)
+    exclude_paths: list[str] = Field(default_factory=list)
+    include_methods: list[str] = Field(default_factory=list)
+    exclude_methods: list[str] = Field(default_factory=list)
     output_dir: str = "generated_mcp_server"
     api_base_url: str = "https://api.example.com"
     enabled_tools: list[str] = Field(default_factory=list)
@@ -53,6 +59,12 @@ class MCPGenConfig(BaseModel):
 
     def normalized_allowed_methods(self) -> set[str]:
         return {method.upper() for method in self.allowed_methods}
+
+    def normalized_include_methods(self) -> set[str]:
+        return {method.upper() for method in self.include_methods}
+
+    def normalized_exclude_methods(self) -> set[str]:
+        return {method.upper() for method in self.exclude_methods}
 
 
 def load_config(path: Path | None = None) -> MCPGenConfig:
@@ -78,6 +90,12 @@ def dump_runtime_config(config: MCPGenConfig, mode: str = "fastapi") -> dict[str
         "mode": mode,
         "max_tools": config.max_tools,
         "allowed_methods": sorted(config.normalized_allowed_methods()),
+        "include_tools": config.include_tools,
+        "exclude_tools": config.exclude_tools,
+        "include_paths": config.include_paths,
+        "exclude_paths": config.exclude_paths,
+        "include_methods": sorted(config.normalized_include_methods()),
+        "exclude_methods": sorted(config.normalized_exclude_methods()),
         "api_base_url": config.api_base_url,
         "enabled_tools": config.enabled_tools,
         "execution_mode": config.execution_mode,

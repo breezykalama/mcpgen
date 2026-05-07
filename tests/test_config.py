@@ -8,6 +8,14 @@ def test_default_config_is_safe() -> None:
 
     assert config.max_tools == 5
     assert config.normalized_allowed_methods() == {"GET"}
+    assert config.include_tools == []
+    assert config.exclude_tools == []
+    assert config.include_paths == []
+    assert config.exclude_paths == []
+    assert config.include_methods == []
+    assert config.exclude_methods == []
+    assert config.normalized_include_methods() == set()
+    assert config.normalized_exclude_methods() == set()
     assert config.output_dir == "generated_mcp_server"
     assert config.api_base_url == "https://api.example.com"
     assert config.enabled_tools == []
@@ -39,6 +47,18 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
         max_tools: 3
         allowed_methods:
           - get
+        include_tools:
+          - list_invoices
+        exclude_tools:
+          - delete_invoice
+        include_paths:
+          - /invoices*
+        exclude_paths:
+          - /internal/*
+        include_methods:
+          - get
+        exclude_methods:
+          - delete
         output_dir: custom_server
         api_base_url: https://billing.example.test
         enabled_tools:
@@ -75,6 +95,14 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
 
     assert config.max_tools == 3
     assert config.normalized_allowed_methods() == {"GET"}
+    assert config.include_tools == ["list_invoices"]
+    assert config.exclude_tools == ["delete_invoice"]
+    assert config.include_paths == ["/invoices*"]
+    assert config.exclude_paths == ["/internal/*"]
+    assert config.include_methods == ["get"]
+    assert config.exclude_methods == ["delete"]
+    assert config.normalized_include_methods() == {"GET"}
+    assert config.normalized_exclude_methods() == {"DELETE"}
     assert config.output_dir == "custom_server"
     assert config.api_base_url == "https://billing.example.test"
     assert config.enabled_tools == ["create_invoice"]

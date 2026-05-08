@@ -2,6 +2,15 @@
 
 All notable MCPGen changes are documented here.
 
+## 1.6.0 - 2026-05-07
+
+### Added
+
+- Added in-memory per-tool circuit breaker runtime protection.
+- Circuit breakers fail fast with `503` after repeated upstream failures.
+- Added audit and metrics events for circuit breaker opened/blocked states.
+- Added `circuit_breaker` config.
+
 ## 1.5.0 - 2026-05-07
 
 ### Added

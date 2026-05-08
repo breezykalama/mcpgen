@@ -37,7 +37,7 @@ Stable in this MVP:
 - FastAPI and MCP stdio generation modes
 - generated `tools.json`, `tools.all.json`, `tools.embeddings.json`, `safety_report.json`, `tool_catalog.md`, and `mcpgen.runtime.json`
 - safe GET execution only
-- policy, audit, metrics, auth passthrough/API key injection, rate limiting, validation, mocks, failure injection, tool selection, and local schema refs
+- policy, audit, metrics, auth passthrough/API key injection, rate limiting, circuit breakers, validation, mocks, failure injection, tool selection, and local schema refs
 - routing evaluation for query-to-tool regression checks
 - smoke tests for generated servers and example scenarios
 - spec drift watchdog baselines for CI/CD
@@ -75,6 +75,7 @@ Still experimental:
 - Runtime metrics for routing, policy decisions, dry-runs, execution outcomes, and latency
 - Upstream auth passthrough and API key injection without hardcoded secrets
 - Lightweight in-memory rate limiting
+- Circuit breaker protection for flaky upstream APIs
 - Runtime input validation for required fields, basic types, and enums
 - Response validation metadata for generated response schemas
 - `doctor` diagnostics for specs and config readiness
@@ -985,6 +986,10 @@ mock:
 failure_injection:
   enabled: false
   scenarios: {}
+circuit_breaker:
+  enabled: false
+  failure_threshold: 5
+  recovery_seconds: 60
 ```
 
 FastAPI mode applies the global limit to operational requests:
@@ -1018,6 +1023,51 @@ Rate-limited events are recorded in both audit logs and aggregate metrics:
 - `per_tool.<tool>.rate_limited`
 
 Limitations: rate limiting is in-memory only, resets when the generated server restarts, and is not distributed across processes or machines. Redis and distributed rate limiting are intentionally out of scope for this MVP.
+
+## Circuit Breaker
+
+v1.6.0 adds lightweight in-memory circuit breaker protection for flaky upstream APIs.
+
+Config:
+
+```yaml
+circuit_breaker:
+  enabled: true
+  failure_threshold: 5
+  recovery_seconds: 60
+```
+
+When enabled, each tool gets an independent circuit:
+
+- `closed`: normal execution
+- `open`: fail fast without calling the upstream API
+- `half_open`: one trial request after the recovery window
+
+If a tool fails repeatedly, MCPGen opens the circuit and returns immediately:
+
+```json
+{
+  "tool": "list_issues",
+  "status": "error",
+  "status_code": 503,
+  "data": {
+    "error": "Circuit breaker is open.",
+    "state": "open",
+    "retry_after": 60
+  }
+}
+```
+
+Circuit breaker events are written to audit logs and metrics:
+
+- `circuit_opened`
+- `circuit_blocked`
+- `total_circuit_opened`
+- `total_circuit_blocked`
+- `per_tool.<tool>.circuit_opened`
+- `per_tool.<tool>.circuit_blocked`
+
+Limitations: circuit breaker state is in-memory only, resets on server restart, and is not shared across processes.
 
 ## Auth Passthrough
 
@@ -1208,6 +1258,7 @@ MCPGen doctor: warn
 - No confirmation workflow UI.
 - No vector database or embedding cache optimization.
 - Rate limiting is in-memory only and not distributed.
+- Circuit breaker state is in-memory only and not distributed.
 - No database-backed audit sink.
 - No production telemetry backend.
 - MCP mode uses a minimal stdio scaffold if the official Python MCP SDK is unavailable.

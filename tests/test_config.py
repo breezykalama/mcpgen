@@ -38,6 +38,9 @@ def test_default_config_is_safe() -> None:
     assert config.mock.list_size == 3
     assert config.failure_injection.enabled is False
     assert config.failure_injection.scenarios == {}
+    assert config.circuit_breaker.enabled is False
+    assert config.circuit_breaker.failure_threshold == 5
+    assert config.circuit_breaker.recovery_seconds == 60
 
 
 def test_load_config_from_yaml(tmp_path: Path) -> None:
@@ -87,6 +90,10 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
           enabled: true
           scenarios:
             list_invoices: timeout
+        circuit_breaker:
+          enabled: true
+          failure_threshold: 2
+          recovery_seconds: 30
         """,
         encoding="utf-8",
     )
@@ -124,3 +131,6 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     assert config.mock.list_size == 2
     assert config.failure_injection.enabled is True
     assert config.failure_injection.scenarios == {"list_invoices": "timeout"}
+    assert config.circuit_breaker.enabled is True
+    assert config.circuit_breaker.failure_threshold == 2
+    assert config.circuit_breaker.recovery_seconds == 30

@@ -69,6 +69,8 @@ def _empty_metrics() -> dict:
         "total_dry_runs": 0,
         "total_confirmation_required": 0,
         "total_rate_limited": 0,
+        "total_circuit_opened": 0,
+        "total_circuit_blocked": 0,
         "per_tool": {},
         "last_updated": None,
     }
@@ -85,6 +87,8 @@ def _empty_tool_metrics() -> dict:
         "errors": 0,
         "blocked": 0,
         "rate_limited": 0,
+        "circuit_opened": 0,
+        "circuit_blocked": 0,
         "average_execution_latency_ms": 0.0,
         "execution_latency_total_ms": 0.0,
         "execution_latency_count": 0,
@@ -152,6 +156,16 @@ def _apply_event(metrics: dict, event: dict) -> None:
     if action == "rate_limited":
         metrics["total_rate_limited"] += 1
         tool_metrics["rate_limited"] += 1
+        return
+
+    if action == "circuit_opened":
+        metrics["total_circuit_opened"] += 1
+        tool_metrics["circuit_opened"] += 1
+        return
+
+    if action == "circuit_blocked":
+        metrics["total_circuit_blocked"] += 1
+        tool_metrics["circuit_blocked"] += 1
 
 
 def _record_latency(tool_metrics: dict, latency_ms) -> None:

@@ -34,6 +34,12 @@ class FailureInjectionConfig(BaseModel):
     scenarios: dict[str, str] = Field(default_factory=dict)
 
 
+class CircuitBreakerConfig(BaseModel):
+    enabled: bool = False
+    failure_threshold: int = 5
+    recovery_seconds: int = 60
+
+
 class MCPGenConfig(BaseModel):
     """Small, safe-by-default generation config."""
 
@@ -58,6 +64,7 @@ class MCPGenConfig(BaseModel):
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
     mock: MockConfig = Field(default_factory=MockConfig)
     failure_injection: FailureInjectionConfig = Field(default_factory=FailureInjectionConfig)
+    circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig)
 
     def normalized_allowed_methods(self) -> set[str]:
         return {method.upper() for method in self.allowed_methods}
@@ -110,4 +117,5 @@ def dump_runtime_config(config: MCPGenConfig, mode: str = "fastapi") -> dict[str
         "rate_limit": model_to_dict(config.rate_limit, by_alias=True),
         "mock": model_to_dict(config.mock),
         "failure_injection": model_to_dict(config.failure_injection),
+        "circuit_breaker": model_to_dict(config.circuit_breaker),
     }

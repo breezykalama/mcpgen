@@ -89,6 +89,7 @@ def write_generated_config(config: MCPGenConfig, mode: str, path: Path) -> None:
         "rate_limit": model_to_dict(config.rate_limit, by_alias=True),
         "mock": model_to_dict(config.mock),
         "failure_injection": model_to_dict(config.failure_injection),
+        "circuit_breaker": model_to_dict(config.circuit_breaker),
     }
     path.write_text(json_to_yaml_like(data), encoding="utf-8")
 

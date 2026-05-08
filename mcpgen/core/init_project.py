@@ -66,6 +66,10 @@ mock:
 failure_injection:
   enabled: false
   scenarios: {{}}
+circuit_breaker:
+  enabled: false
+  failure_threshold: 5
+  recovery_seconds: 60
 """
 
 

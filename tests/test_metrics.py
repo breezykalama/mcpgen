@@ -150,3 +150,16 @@ def test_metrics_json_is_valid(tmp_path: Path) -> None:
     data = json.loads((tmp_path / "logs" / "metrics.json").read_text(encoding="utf-8"))
     assert data["total_execution_blocked"] == 1
     assert data["per_tool"]["delete_invoice"]["blocked"] == 1
+
+
+def test_circuit_breaker_metrics_increment_counts(tmp_path: Path) -> None:
+    config = metrics_config(tmp_path)
+
+    record_metric({"action": "circuit_opened", "tool_name": "list_invoices"}, config)
+    record_metric({"action": "circuit_blocked", "tool_name": "list_invoices"}, config)
+
+    metrics = read_metrics(config)
+    assert metrics["total_circuit_opened"] == 1
+    assert metrics["total_circuit_blocked"] == 1
+    assert metrics["per_tool"]["list_invoices"]["circuit_opened"] == 1
+    assert metrics["per_tool"]["list_invoices"]["circuit_blocked"] == 1

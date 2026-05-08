@@ -5,6 +5,11 @@ from urllib.parse import urlencode
 import httpx
 
 from mcpgen.runtime.audit import build_audit_event, write_audit_event
+from mcpgen.runtime.circuit_breaker import (
+    check_circuit_breaker,
+    record_circuit_failure,
+    record_circuit_success,
+)
 from mcpgen.runtime.failure import build_failure_response, get_failure_scenario
 from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.mock import build_mock_response, should_use_mock
@@ -87,10 +92,27 @@ def execute_tool(
             "data": validation,
         }
 
+    circuit = check_circuit_breaker(tool_name, config)
+    if not circuit["allowed"]:
+        record_circuit_event(tool, config, source, "circuit_blocked", circuit)
+        return {
+            "tool": tool_name,
+            "status": "error",
+            "status_code": 503,
+            "data": {
+                "error": circuit["reason"],
+                "state": circuit["state"],
+                "retry_after": circuit["retry_after"],
+            },
+        }
+
     failure_scenario = get_failure_scenario(tool_name, config)
     if failure_scenario is not None:
         write_execution_event(tool, policy, config, source, "execution_started")
         result = build_failure_response(tool_name, failure_scenario)
+        circuit_update = record_circuit_failure(tool_name, config)
+        if circuit_update.get("state") == "open" and circuit_update.get("changed"):
+            record_circuit_event(tool, config, source, "circuit_opened", circuit_update)
         write_execution_event(
             tool,
             policy,
@@ -105,6 +127,7 @@ def execute_tool(
     if should_use_mock(config):
         write_execution_event(tool, policy, config, source, "execution_started")
         result = build_mock_response(tool, params, config)
+        record_circuit_success(tool_name, config)
         write_execution_event(tool, policy, config, source, "execution_success", latency_ms=0.0)
         return result
 
@@ -128,6 +151,7 @@ def execute_tool(
         response.raise_for_status()
         data = parse_response_data(response)
         response_validation = validate_tool_response(tool, data)
+        record_circuit_success(tool_name, config)
         write_execution_event(
             tool,
             policy,
@@ -144,6 +168,10 @@ def execute_tool(
             "response_validation": response_validation,
         }
     except httpx.HTTPStatusError as exc:
+        if exc.response.status_code >= 500:
+            circuit_update = record_circuit_failure(tool_name, config)
+            if circuit_update.get("state") == "open" and circuit_update.get("changed"):
+                record_circuit_event(tool, config, source, "circuit_opened", circuit_update)
         write_execution_event(
             tool,
             policy,
@@ -160,6 +188,9 @@ def execute_tool(
             "data": parse_response_data(exc.response),
         }
     except httpx.HTTPError as exc:
+        circuit_update = record_circuit_failure(tool_name, config)
+        if circuit_update.get("state") == "open" and circuit_update.get("changed"):
+            record_circuit_event(tool, config, source, "circuit_opened", circuit_update)
         write_execution_event(
             tool,
             policy,
@@ -297,6 +328,38 @@ def record_execution_metric(
             "allowed": policy.get("allowed", False),
             "source": source,
             "latency_ms": latency_ms,
+        },
+        config,
+    )
+
+
+def record_circuit_event(tool: dict, config: dict, source: str, action: str, decision: dict) -> None:
+    event = {
+        "tool_name": tool.get("name", "unknown"),
+        "method": tool.get("method", "unknown"),
+        "path": tool.get("path", "unknown"),
+        "risk_level": tool.get("risk_level", "unknown"),
+        "mode": config.get("execution_mode", "dry-run"),
+        "status": decision.get("state", "unknown"),
+        "allowed": decision.get("allowed", False),
+        "reason": decision.get("reason", "Circuit breaker event."),
+        "source": source,
+        "action": action,
+        "retry_after": decision.get("retry_after", 0),
+        "audit_enabled": config.get("audit_enabled", True),
+        "audit_log_path": config.get("audit_log_path", "logs/audit.log"),
+    }
+    write_audit_event(event)
+    record_metric(
+        {
+            "action": action,
+            "tool_name": tool.get("name", "unknown"),
+            "method": tool.get("method", "unknown"),
+            "path": tool.get("path", "unknown"),
+            "risk_level": tool.get("risk_level", "unknown"),
+            "status": decision.get("state", "unknown"),
+            "allowed": decision.get("allowed", False),
+            "source": source,
         },
         config,
     )

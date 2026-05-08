@@ -77,6 +77,11 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
         "enabled": False,
         "scenarios": {},
     }
+    assert runtime_config["circuit_breaker"] == {
+        "enabled": False,
+        "failure_threshold": 5,
+        "recovery_seconds": 60,
+    }
     assert len(embeddings) == 5
     assert embeddings[0]["tool_name"] == "list_customers"
     assert "## list_customers" in tool_catalog
@@ -93,6 +98,7 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     assert "  enabled: False" in generated_config
     assert "mock:" in generated_config
     assert "failure_injection:" in generated_config
+    assert "circuit_breaker:" in generated_config
 
 
 def test_generate_project_honors_max_tools_config(tmp_path: Path) -> None:

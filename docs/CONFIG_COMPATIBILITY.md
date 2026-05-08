@@ -37,6 +37,7 @@ Within `1.x`:
 - `rate_limit`
 - `mock`
 - `failure_injection`
+- `circuit_breaker`
 
 ## Experimental Config Areas
 

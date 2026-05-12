@@ -14,6 +14,13 @@ from mcpgen.runtime.failure import build_failure_response, get_failure_scenario
 from mcpgen.runtime.metrics import record_metric
 from mcpgen.runtime.mock import build_mock_response, should_use_mock
 from mcpgen.runtime.policy import evaluate_tool_policy
+from mcpgen.runtime.retry import (
+    max_attempts,
+    retry_delay,
+    should_retry_network_error,
+    should_retry_status,
+    sleep_before_retry,
+)
 from mcpgen.runtime.validation import validate_tool_inputs, validate_tool_response
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
@@ -103,6 +110,8 @@ def execute_tool(
                 "error": circuit["reason"],
                 "state": circuit["state"],
                 "retry_after": circuit["retry_after"],
+                "do_not_retry_until": circuit.get("do_not_retry_until"),
+                "agent_instruction": circuit.get("agent_instruction"),
             },
         }
 
@@ -146,66 +155,82 @@ def execute_tool(
     write_execution_event(tool, policy, config, source, "execution_started")
     started_at = perf_counter()
 
-    try:
-        response = httpx.get(url, headers=auth_headers, timeout=DEFAULT_TIMEOUT_SECONDS)
-        response.raise_for_status()
-        data = parse_response_data(response)
-        response_validation = validate_tool_response(tool, data)
-        record_circuit_success(tool_name, config)
-        write_execution_event(
-            tool,
-            policy,
-            config,
-            source,
-            "execution_success",
-            latency_ms=elapsed_ms(started_at),
-        )
-        return {
-            "tool": tool_name,
-            "status": "success",
-            "status_code": response.status_code,
-            "data": data,
-            "response_validation": response_validation,
-        }
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code >= 500:
+    attempt = 1
+
+    while True:
+        try:
+            response = httpx.get(url, headers=auth_headers, timeout=DEFAULT_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            data = parse_response_data(response)
+            response_validation = validate_tool_response(tool, data)
+            record_circuit_success(tool_name, config)
+            write_execution_event(
+                tool,
+                policy,
+                config,
+                source,
+                "execution_success",
+                latency_ms=elapsed_ms(started_at),
+            )
+            return {
+                "tool": tool_name,
+                "status": "success",
+                "status_code": response.status_code,
+                "data": data,
+                "response_validation": response_validation,
+            }
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code
+            if should_retry_status(status_code, attempt, config):
+                write_retry_event(tool, policy, config, source, attempt, status_code, str(exc))
+                sleep_before_retry(attempt, config)
+                attempt += 1
+                continue
+
+            if status_code >= 500:
+                circuit_update = record_circuit_failure(tool_name, config)
+                if circuit_update.get("state") == "open" and circuit_update.get("changed"):
+                    record_circuit_event(tool, config, source, "circuit_opened", circuit_update)
+            write_execution_event(
+                tool,
+                policy,
+                config,
+                source,
+                "execution_error",
+                reason=str(exc),
+                latency_ms=elapsed_ms(started_at),
+            )
+            return {
+                "tool": tool_name,
+                "status": "error",
+                "status_code": status_code,
+                "data": parse_response_data(exc.response),
+            }
+        except httpx.HTTPError as exc:
+            if should_retry_network_error(attempt, config):
+                write_retry_event(tool, policy, config, source, attempt, None, str(exc))
+                sleep_before_retry(attempt, config)
+                attempt += 1
+                continue
+
             circuit_update = record_circuit_failure(tool_name, config)
             if circuit_update.get("state") == "open" and circuit_update.get("changed"):
                 record_circuit_event(tool, config, source, "circuit_opened", circuit_update)
-        write_execution_event(
-            tool,
-            policy,
-            config,
-            source,
-            "execution_error",
-            reason=str(exc),
-            latency_ms=elapsed_ms(started_at),
-        )
-        return {
-            "tool": tool_name,
-            "status": "error",
-            "status_code": exc.response.status_code,
-            "data": parse_response_data(exc.response),
-        }
-    except httpx.HTTPError as exc:
-        circuit_update = record_circuit_failure(tool_name, config)
-        if circuit_update.get("state") == "open" and circuit_update.get("changed"):
-            record_circuit_event(tool, config, source, "circuit_opened", circuit_update)
-        write_execution_event(
-            tool,
-            policy,
-            config,
-            source,
-            "execution_error",
-            reason=str(exc),
-            latency_ms=elapsed_ms(started_at),
-        )
-        return {
-            "tool": tool_name,
-            "status": "error",
-            "status_code": None,
-            "data": {"error": str(exc)},
-        }
+            write_execution_event(
+                tool,
+                policy,
+                config,
+                source,
+                "execution_error",
+                reason=str(exc),
+                latency_ms=elapsed_ms(started_at),
+            )
+            return {
+                "tool": tool_name,
+                "status": "error",
+                "status_code": None,
+                "data": {"error": str(exc)},
+            }
 
 
 def find_tool(tool_name: str, tools: list[dict]) -> dict | None:
@@ -309,6 +334,47 @@ def write_execution_event(
     record_execution_metric(tool, event_policy, config, source, action, latency_ms=latency_ms)
 
 
+def write_retry_event(
+    tool: dict,
+    policy: dict,
+    config: dict,
+    source: str,
+    attempt: int,
+    status_code: int | None,
+    reason: str,
+) -> None:
+    event_policy = {
+        **policy,
+        "status": "retrying",
+        "reason": reason,
+        "attempt": attempt,
+        "next_attempt": attempt + 1,
+        "max_attempts": max_attempts(config),
+        "retry_after": retry_delay(attempt, config),
+    }
+    if status_code is not None:
+        event_policy["status_code"] = status_code
+    event = build_audit_event(
+        tool=tool,
+        policy=event_policy,
+        config=config,
+        source=source,
+        action="execution_retry",
+    )
+    event.update(
+        {
+            "attempt": event_policy["attempt"],
+            "next_attempt": event_policy["next_attempt"],
+            "max_attempts": event_policy["max_attempts"],
+            "retry_after": event_policy["retry_after"],
+        }
+    )
+    if status_code is not None:
+        event["status_code"] = status_code
+    write_audit_event(event)
+    record_execution_metric(tool, event_policy, config, source, "execution_retry")
+
+
 def record_execution_metric(
     tool: dict,
     policy: dict,
@@ -326,9 +392,9 @@ def record_execution_metric(
             "risk_level": policy.get("risk_level") or tool.get("risk_level", "unknown"),
             "status": policy.get("status", "unknown"),
             "allowed": policy.get("allowed", False),
-            "source": source,
-            "latency_ms": latency_ms,
-        },
+        "source": source,
+        "latency_ms": latency_ms,
+    },
         config,
     )
 
@@ -346,6 +412,8 @@ def record_circuit_event(tool: dict, config: dict, source: str, action: str, dec
         "source": source,
         "action": action,
         "retry_after": decision.get("retry_after", 0),
+        "do_not_retry_until": decision.get("do_not_retry_until"),
+        "agent_instruction": decision.get("agent_instruction"),
         "audit_enabled": config.get("audit_enabled", True),
         "audit_log_path": config.get("audit_log_path", "logs/audit.log"),
     }

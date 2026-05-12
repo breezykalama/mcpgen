@@ -70,6 +70,16 @@ circuit_breaker:
   enabled: false
   failure_threshold: 5
   recovery_seconds: 60
+retry:
+  enabled: false
+  max_attempts: 3
+  backoff_seconds: 0.5
+  retry_statuses:
+    - 429
+    - 500
+    - 502
+    - 503
+    - 504
 """
 
 

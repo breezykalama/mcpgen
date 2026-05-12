@@ -66,6 +66,7 @@ def _empty_metrics() -> dict:
         "total_execution_success": 0,
         "total_execution_errors": 0,
         "total_execution_blocked": 0,
+        "total_execution_retries": 0,
         "total_dry_runs": 0,
         "total_confirmation_required": 0,
         "total_rate_limited": 0,
@@ -86,6 +87,7 @@ def _empty_tool_metrics() -> dict:
         "successes": 0,
         "errors": 0,
         "blocked": 0,
+        "retries": 0,
         "rate_limited": 0,
         "circuit_opened": 0,
         "circuit_blocked": 0,
@@ -146,6 +148,11 @@ def _apply_event(metrics: dict, event: dict) -> None:
         metrics["total_execution_errors"] += 1
         tool_metrics["errors"] += 1
         _record_latency(tool_metrics, event.get("latency_ms"))
+        return
+
+    if action == "execution_retry":
+        metrics["total_execution_retries"] += 1
+        tool_metrics["retries"] += 1
         return
 
     if action == "execution_blocked":

@@ -37,7 +37,7 @@ Stable in this MVP:
 - FastAPI and MCP stdio generation modes
 - generated `tools.json`, `tools.all.json`, `tools.embeddings.json`, `safety_report.json`, `tool_catalog.md`, and `mcpgen.runtime.json`
 - safe GET execution only
-- policy, audit, metrics, auth passthrough/API key injection, rate limiting, circuit breakers, validation, mocks, failure injection, tool selection, and local schema refs
+- policy, audit, metrics, auth passthrough/API key injection, rate limiting, retries, circuit breakers, validation, mocks, failure injection, tool selection, and local schema refs
 - routing evaluation for query-to-tool regression checks
 - smoke tests for generated servers and example scenarios
 - spec drift watchdog baselines for CI/CD
@@ -75,6 +75,7 @@ Still experimental:
 - Runtime metrics for routing, policy decisions, dry-runs, execution outcomes, and latency
 - Upstream auth passthrough and API key injection without hardcoded secrets
 - Lightweight in-memory rate limiting
+- Safe GET retry with backoff for transient upstream failures
 - Circuit breaker protection for flaky upstream APIs
 - Runtime input validation for required fields, basic types, and enums
 - Response validation metadata for generated response schemas
@@ -1053,7 +1054,9 @@ If a tool fails repeatedly, MCPGen opens the circuit and returns immediately:
   "data": {
     "error": "Circuit breaker is open.",
     "state": "open",
-    "retry_after": 60
+    "retry_after": 60,
+    "do_not_retry_until": "2026-05-08T10:31:12+00:00",
+    "agent_instruction": "Do not retry this specific tool for at least 60 seconds."
   }
 }
 ```
@@ -1068,6 +1071,39 @@ Circuit breaker events are written to audit logs and metrics:
 - `per_tool.<tool>.circuit_blocked`
 
 Limitations: circuit breaker state is in-memory only, resets on server restart, and is not shared across processes.
+
+## Retry and Backoff
+
+v1.7.0 adds optional retry/backoff for transient safe `GET` execution failures.
+
+Config:
+
+```yaml
+retry:
+  enabled: true
+  max_attempts: 3
+  backoff_seconds: 0.5
+  retry_statuses:
+    - 429
+    - 500
+    - 502
+    - 503
+    - 504
+```
+
+Retries are deliberately narrow:
+
+- only safe `GET` execution is retried
+- policy blocks, validation errors, auth errors, and open circuits are not retried
+- `max_attempts` includes the first attempt
+- backoff is local and process-level
+
+Retry attempts are written as `execution_retry` audit events and counted in metrics:
+
+- `total_execution_retries`
+- `per_tool.<tool>.retries`
+
+When a circuit is open, the response includes `retry_after`, `do_not_retry_until`, and an `agent_instruction` telling the caller not to retry that specific tool during the cooldown window.
 
 ## Auth Passthrough
 
@@ -1199,6 +1235,16 @@ rate_limit:
   per_tool: 10
   global: 100
   window_seconds: 60
+retry:
+  enabled: false
+  max_attempts: 3
+  backoff_seconds: 0.5
+  retry_statuses:
+    - 429
+    - 500
+    - 502
+    - 503
+    - 504
 ```
 
 For the JSONPlaceholder demo, set:
@@ -1251,6 +1297,7 @@ MCPGen doctor: warn
 - Request validation is MVP-level and not full JSON Schema validation.
 - Mock responses are deterministic fixtures shaped by response schemas when available, not realistic domain datasets.
 - Failure injection is configured per tool and supports only common MVP scenarios.
+- Retries are local and limited to safe `GET` execution only.
 - Tool selection supports simple names, methods, and shell-style path wildcards, not full OpenAPI tag/group policies yet.
 - Schema support resolves local refs and simple `allOf`, but not remote refs, discriminators, or complex composition.
 - No OAuth2 flow yet.
@@ -1272,6 +1319,7 @@ MCPGen doctor: warn
 - Full JSON Schema validation
 - OpenAPI tag-based tool selection
 - Failure scenario probabilities and per-request overrides
+- Retry policies per tool
 - Pluggable audit sinks
 - Better semantic routing models and embedding cache optimization
 - Deployment templates

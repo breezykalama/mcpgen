@@ -40,6 +40,13 @@ class CircuitBreakerConfig(BaseModel):
     recovery_seconds: int = 60
 
 
+class RetryConfig(BaseModel):
+    enabled: bool = False
+    max_attempts: int = 3
+    backoff_seconds: float = 0.5
+    retry_statuses: list[int] = Field(default_factory=lambda: [429, 500, 502, 503, 504])
+
+
 class MCPGenConfig(BaseModel):
     """Small, safe-by-default generation config."""
 
@@ -65,6 +72,7 @@ class MCPGenConfig(BaseModel):
     mock: MockConfig = Field(default_factory=MockConfig)
     failure_injection: FailureInjectionConfig = Field(default_factory=FailureInjectionConfig)
     circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig)
+    retry: RetryConfig = Field(default_factory=RetryConfig)
 
     def normalized_allowed_methods(self) -> set[str]:
         return {method.upper() for method in self.allowed_methods}
@@ -118,4 +126,5 @@ def dump_runtime_config(config: MCPGenConfig, mode: str = "fastapi") -> dict[str
         "mock": model_to_dict(config.mock),
         "failure_injection": model_to_dict(config.failure_injection),
         "circuit_breaker": model_to_dict(config.circuit_breaker),
+        "retry": model_to_dict(config.retry),
     }

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from time import time
 
 
@@ -22,12 +23,11 @@ def check_circuit_breaker(tool_name: str, config: dict) -> dict:
             state["half_open_trial"] = True
             return allowed_decision("half_open")
 
-        retry_after = max(1, int(recovery_seconds - elapsed))
         return {
             "allowed": False,
             "state": "open",
-            "retry_after": retry_after,
             "reason": "Circuit breaker is open.",
+            **retry_metadata(max(1, int(recovery_seconds - elapsed))),
         }
 
     return allowed_decision(current_state)
@@ -66,23 +66,27 @@ def record_circuit_failure(tool_name: str, config: dict) -> dict:
 
     if previous_state == "half_open":
         open_circuit(state)
+        retry_after = recovery_seconds(config)
         return {
             "state": "open",
             "previous_state": previous_state,
             "failure_count": state["failure_count"],
             "changed": True,
             "reason": "Circuit breaker reopened after half-open failure.",
+            **retry_metadata(retry_after),
         }
 
     state["failure_count"] = int(state.get("failure_count", 0)) + 1
     if state["failure_count"] >= threshold:
         open_circuit(state)
+        retry_after = recovery_seconds(config)
         return {
             "state": "open",
             "previous_state": previous_state,
             "failure_count": state["failure_count"],
             "changed": previous_state != "open",
             "reason": "Circuit breaker opened after repeated failures.",
+            **retry_metadata(retry_after),
         }
 
     return {
@@ -100,6 +104,11 @@ def reset_circuit_breakers() -> None:
 
 def circuit_enabled(config: dict) -> bool:
     return (config.get("circuit_breaker") or {}).get("enabled") is True
+
+
+def recovery_seconds(config: dict) -> int:
+    circuit_config = config.get("circuit_breaker") or {}
+    return max(1, int(circuit_config.get("recovery_seconds", 60)))
 
 
 def _tool_state(tool_name: str) -> dict:
@@ -125,4 +134,13 @@ def allowed_decision(state: str) -> dict:
         "state": state,
         "retry_after": 0,
         "reason": "Circuit breaker allows execution.",
+    }
+
+
+def retry_metadata(retry_after: int) -> dict:
+    do_not_retry_until = datetime.fromtimestamp(time() + retry_after, tz=timezone.utc).isoformat()
+    return {
+        "retry_after": retry_after,
+        "do_not_retry_until": do_not_retry_until,
+        "agent_instruction": f"Do not retry this specific tool for at least {retry_after} seconds.",
     }

@@ -14,6 +14,7 @@ def test_init_project_writes_starter_files(tmp_path: Path) -> None:
     assert tmp_path / "routing_eval.yaml" in written
     assert "mock:\n  enabled: false" in (tmp_path / "mcpgen.yaml").read_text(encoding="utf-8")
     assert "circuit_breaker:\n  enabled: false" in (tmp_path / "mcpgen.yaml").read_text(encoding="utf-8")
+    assert "retry:\n  enabled: false" in (tmp_path / "mcpgen.yaml").read_text(encoding="utf-8")
     assert "API_BASE_URL=https://jsonplaceholder.typicode.com" in (tmp_path / ".env.example").read_text(
         encoding="utf-8"
     )

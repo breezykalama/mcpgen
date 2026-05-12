@@ -41,6 +41,10 @@ def test_default_config_is_safe() -> None:
     assert config.circuit_breaker.enabled is False
     assert config.circuit_breaker.failure_threshold == 5
     assert config.circuit_breaker.recovery_seconds == 60
+    assert config.retry.enabled is False
+    assert config.retry.max_attempts == 3
+    assert config.retry.backoff_seconds == 0.5
+    assert config.retry.retry_statuses == [429, 500, 502, 503, 504]
 
 
 def test_load_config_from_yaml(tmp_path: Path) -> None:
@@ -94,6 +98,13 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
           enabled: true
           failure_threshold: 2
           recovery_seconds: 30
+        retry:
+          enabled: true
+          max_attempts: 4
+          backoff_seconds: 0.1
+          retry_statuses:
+            - 500
+            - 503
         """,
         encoding="utf-8",
     )
@@ -134,3 +145,7 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     assert config.circuit_breaker.enabled is True
     assert config.circuit_breaker.failure_threshold == 2
     assert config.circuit_breaker.recovery_seconds == 30
+    assert config.retry.enabled is True
+    assert config.retry.max_attempts == 4
+    assert config.retry.backoff_seconds == 0.1
+    assert config.retry.retry_statuses == [500, 503]

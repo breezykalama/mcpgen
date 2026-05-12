@@ -2,6 +2,15 @@
 
 All notable MCPGen changes are documented here.
 
+## 1.7.0 - 2026-05-08
+
+### Added
+
+- Added optional retry/backoff for transient safe `GET` execution failures.
+- Added `execution_retry` audit and metrics events.
+- Added `retry` config with `max_attempts`, `backoff_seconds`, and retryable status codes.
+- Added agent-readable circuit-open metadata with `do_not_retry_until` and `agent_instruction`.
+
 ## 1.6.0 - 2026-05-07
 
 ### Added

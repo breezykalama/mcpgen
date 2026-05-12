@@ -38,6 +38,7 @@ Within `1.x`:
 - `mock`
 - `failure_injection`
 - `circuit_breaker`
+- `retry`
 
 ## Experimental Config Areas
 

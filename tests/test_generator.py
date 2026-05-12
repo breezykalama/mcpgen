@@ -82,6 +82,12 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
         "failure_threshold": 5,
         "recovery_seconds": 60,
     }
+    assert runtime_config["retry"] == {
+        "enabled": False,
+        "max_attempts": 3,
+        "backoff_seconds": 0.5,
+        "retry_statuses": [429, 500, 502, 503, 504],
+    }
     assert len(embeddings) == 5
     assert embeddings[0]["tool_name"] == "list_customers"
     assert "## list_customers" in tool_catalog
@@ -99,6 +105,7 @@ def test_generate_project_writes_only_safe_tools(tmp_path: Path) -> None:
     assert "mock:" in generated_config
     assert "failure_injection:" in generated_config
     assert "circuit_breaker:" in generated_config
+    assert "retry:" in generated_config
 
 
 def test_generate_project_honors_max_tools_config(tmp_path: Path) -> None:

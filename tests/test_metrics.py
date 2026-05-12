@@ -163,3 +163,13 @@ def test_circuit_breaker_metrics_increment_counts(tmp_path: Path) -> None:
     assert metrics["total_circuit_blocked"] == 1
     assert metrics["per_tool"]["list_invoices"]["circuit_opened"] == 1
     assert metrics["per_tool"]["list_invoices"]["circuit_blocked"] == 1
+
+
+def test_retry_metrics_increment_counts(tmp_path: Path) -> None:
+    config = metrics_config(tmp_path)
+
+    record_metric({"action": "execution_retry", "tool_name": "list_invoices"}, config)
+
+    metrics = read_metrics(config)
+    assert metrics["total_execution_retries"] == 1
+    assert metrics["per_tool"]["list_invoices"]["retries"] == 1
